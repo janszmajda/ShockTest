@@ -5,8 +5,15 @@ Run this to verify shock_detector.py is working correctly across all markets.
 Prints detected shocks per market and suggests threshold tuning if sample is small.
 
 Usage:
-    python analysis/test_shock_detection.py
+    python analysis/test_shock_detection.py   (from project root)
+    python -m analysis.test_shock_detection   (alternative)
 """
+
+import sys
+from pathlib import Path
+
+# Ensure project root is on the path so `analysis` is importable
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.helpers import get_db
 from analysis.shock_detector import find_shocks, run_detection
