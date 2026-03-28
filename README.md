@@ -1,8 +1,8 @@
 # ShockTest
 
-**Do Prediction Markets Overreact?**
+**Do Prediction Markets Overreact? Find the Edge. Size the Trade.**
 
-ShockTest is a quantitative analysis tool that detects large probability shocks in prediction markets and measures whether they systematically mean-revert afterward. Built in 24 hours at YHack Spring 2026.
+ShockTest is a trading signal and analysis tool for prediction markets. It detects large probability shocks ("overreactions") in Polymarket data, measures whether they systematically mean-revert, and gives traders an interactive simulator to size fade-the-shock positions with historical edge statistics. Built in 24 hours at YHack Spring 2026.
 
 ## The Hypothesis
 
@@ -13,52 +13,72 @@ We test a single, falsifiable question:
 > **H0 (null):** After a large probability shock, future price changes are random.
 > **H1 (alt):** After a large shock, probabilities systematically mean-revert.
 
+We quantify which is more common, how strong the effect is, and whether it differs by market category. Then we turn that finding into a **trading tool**.
+
+## Results
+
+| Metric | Value |
+|--------|-------|
+| Markets Analyzed | 643 (583 Polymarket + 60 Manifold) |
+| Total Shocks Detected | 1,337 |
+| 1h Reversion Rate | 60.7% |
+| 6h Reversion Rate | 59.9% |
+| 24h Reversion Rate | 57.5% |
+| Mean 6h Reversion | +3.45 pp |
+| Fade Strategy Win Rate (6h) | 59.9% |
+| Avg P&L per $1 Risked (6h) | +$0.035 |
+
+**By category (6h):**
+| Category | Win Rate | Avg P&L | Sample Size |
+|----------|----------|---------|-------------|
+| Politics | 53.3% | +$0.025 | 29 |
+| Sports | 28.6% | -$0.013 | 6 |
+| Other | 57.1% | +$0.048 | 145 |
+
+**Finding:** Prediction markets do systematically overreact. ~60% of large probability shocks partially revert within 6 hours, with a positive expected value for the fade strategy. The effect is strongest in non-sports categories.
+
+## What We Built
+
+### Shock Detection Engine
+Scans 643 markets for large, fast probability moves using a configurable threshold. Users can dynamically adjust the shock threshold and time horizon.
+
+### Post-Shock Analysis & Backtest
+Measures what happens at 1h, 6h, and 24h after each shock. Computes reversion rates, fade strategy P&L, win rates, and expected value — overall and by market category.
+
+### Interactive Trade Simulator
+For any detected shock, input a position size and horizon to see:
+- Expected P&L based on historical reversion data
+- Win rate and best/worst case scenarios
+- Payoff distribution chart with historical outcomes
+
+### Interactive Dashboard
+Next.js web app with configurable controls (threshold slider, horizon picker, category filter), sortable shocks table, per-shock detail pages with probability charts, and aggregate statistics.
+
 ## Methodology
 
 ### Shock Detection
-
-A shock occurs when the absolute change in implied probability exceeds a threshold within a time window:
 
 ```
 |p(t2) - p(t1)| >= theta    where t2 - t1 <= T
 ```
 
-- **theta** = 0.08 (8 percentage point move)
+- **theta** = 0.08 (8 percentage point move) — adjustable via slider from 0.03 to 0.20
 - **T** = 1 hour
 
-### Post-Shock Measurement
+### Fade Strategy Backtest
 
-For each detected shock at time t2:
+For each shock, simulate taking the opposite position:
 
 ```
-shock_size = p(t2) - p(t1)
-post_move  = p(t2 + h) - p(t2)     for h in {1h, 6h, 24h}
-reversion  = -sign(shock_size) * post_move
+Entry:  Buy opposite direction at p(t2)
+Exit:   Close at p(t2 + h) for horizon h
+P&L:    position_size * reversion
 ```
 
-Positive reversion = price moved back toward pre-shock level.
-
-### Aggregation
-
-| Metric | Definition |
-|--------|------------|
-| Reversion Rate | % of shocks where reversion > 0 |
-| Mean Reversion | Average reversion magnitude across all shocks |
-| Effect by Category | Reversion rate split by politics / sports / crypto / other |
-| Sample Size | Number of valid shocks per horizon |
-
-## Results
-
-<!-- PLACEHOLDER: Replace with real numbers once analysis completes -->
-
-| Metric | Value |
-|--------|-------|
-| Markets Analyzed | _TBD_ |
-| Total Shocks Detected | _TBD_ |
-| 6h Reversion Rate | _TBD_ |
-| Mean 6h Reversion | _TBD_ |
-
-_Results will be populated with real data from our analysis pipeline._
+**Caveats** (displayed in the tool):
+- In-sample backtest only — no out-of-sample validation
+- Ignores transaction costs, slippage, and liquidity constraints
+- Not investment advice — exploratory analysis tool
 
 ## Tech Stack
 
@@ -66,10 +86,10 @@ _Results will be populated with real data from our analysis pipeline._
 |-------|------|---------|
 | Data Fetching | `requests` + Polymarket Gamma API + CLOB API | Fetch market listings and price history |
 | Supplemental Data | Manifold Markets API | Additional market diversity |
-| Storage | **MongoDB Atlas** (free M0) | Cloud database for time series + shock results |
-| Analysis | `pandas` + `numpy` | Shock detection, post-shock statistics |
+| Storage | **MongoDB Atlas** (free M0) | Cloud database for time series, shocks, backtest results |
+| Analysis | `pandas` + `numpy` | Shock detection, post-shock stats, fade strategy backtest |
 | Categorization | **Google Gemini 2.5 Flash** | Auto-classify markets by category from titles |
-| Frontend | **Next.js 14** + TypeScript + Tailwind CSS + Recharts | Interactive analytics dashboard |
+| Frontend | **Next.js 14** + TypeScript + Tailwind CSS + Recharts | Interactive dashboard with trade simulator |
 | Deployment | **Vercel** | Production hosting |
 | Domain | **GoDaddy** (via MLH) | Custom domain |
 
@@ -78,18 +98,13 @@ _Results will be populated with real data from our analysis pipeline._
 ```
 Polymarket API ──┐
                  ├──> Python scripts ──> MongoDB Atlas ──> Next.js API routes ──> Dashboard
-Manifold API ────┘        (scripts/)       (shocktest)      (dashboard/api/)     (dashboard/)
-                          + analysis/
+Manifold API ────┘     (scripts/)         (shocktest)      (dashboard/api/)    + Trade Simulator
+                       + analysis/
 ```
 
-- **Person 1** (`scripts/`): Data pipeline — fetch, clean, normalize market data
+- **Person 1** (`scripts/`): Data pipeline — fetch, clean, normalize, compute backtest data
 - **Person 2** (`analysis/`): Shock detection, post-shock analysis, Gemini categorization
-- **Person 3** (`dashboard/`): Next.js frontend with interactive charts and tables
-
-## Data Sources
-
-- **Polymarket** (primary): Binary prediction markets with ~10-min resolution price history via CLOB API
-- **Manifold Markets** (supplemental): Community prediction markets with bet-level price history
+- **Person 3** (`dashboard/`): Interactive frontend with trade simulator and configurable controls
 
 ## Running Locally
 
@@ -105,6 +120,10 @@ python scripts/resample.py
 
 # Run analysis
 python analysis/run_all.py
+
+# Compute trade simulator data
+python scripts/add_fade_pnl.py
+python scripts/compute_distribution.py
 
 # Start dashboard
 cd dashboard && npm install && npm run dev
