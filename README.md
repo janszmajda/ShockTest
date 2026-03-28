@@ -19,8 +19,9 @@ We quantify which is more common, how strong the effect is, and whether it diffe
 
 | Metric | Value |
 |--------|-------|
-| Markets Analyzed | 643 (583 Polymarket + 60 Manifold) |
+| Markets Analyzed | 1,069 (1,009 Polymarket + 60 Manifold) |
 | Total Shocks Detected | 1,337 |
+| Live Signals (last 48h) | 198 |
 | 1h Reversion Rate | 60.7% |
 | 6h Reversion Rate | 59.9% |
 | 24h Reversion Rate | 57.5% |
@@ -35,12 +36,20 @@ We quantify which is more common, how strong the effect is, and whether it diffe
 | Sports | 28.6% | -$0.013 | 6 |
 | Other | 57.1% | +$0.048 | 145 |
 
-**Finding:** Prediction markets do systematically overreact. ~60% of large probability shocks partially revert within 6 hours, with a positive expected value for the fade strategy. The effect is strongest in non-sports categories.
+**Finding:** Across 1,337 probability shocks detected in 1,069 Polymarket and Manifold markets, 59.9% showed mean reversion within 6 hours. A simulated fade-the-shock strategy produced a 60% win rate with +3.45% expected return per dollar risked. Political markets reverted at 53% while non-sports markets showed 57% reversion — suggesting most prediction market shocks are overreactions rather than genuine information.
+
+## How to Use It
+
+1. Browse detected shocks in the table — filter by category, adjust the shock threshold
+2. Look for LIVE signals — shocks from the last 48 hours that are still tradeable
+3. Click a shock to see the full probability chart with the shock highlighted
+4. Use the Trade Simulator to input a position size and see expected P&L, win rate, and the historical distribution of outcomes
+5. Adjust the time horizon (1h/6h/24h) to see how the edge changes over time
 
 ## What We Built
 
 ### Shock Detection Engine
-Scans 643 markets for large, fast probability moves using a configurable threshold. Users can dynamically adjust the shock threshold and time horizon.
+Scans 1,069 markets for large, fast probability moves using a configurable threshold. Users can dynamically adjust the shock threshold and time horizon.
 
 ### Post-Shock Analysis & Backtest
 Measures what happens at 1h, 6h, and 24h after each shock. Computes reversion rates, fade strategy P&L, win rates, and expected value — overall and by market category.
@@ -50,6 +59,9 @@ For any detected shock, input a position size and horizon to see:
 - Expected P&L based on historical reversion data
 - Win rate and best/worst case scenarios
 - Payoff distribution chart with historical outcomes
+
+### Live Signal Detection
+Shocks from the last 48 hours are flagged as potentially actionable — transforming the tool from retrospective research into a forward-looking trading signal desk.
 
 ### Interactive Dashboard
 Next.js web app with configurable controls (threshold slider, horizon picker, category filter), sortable shocks table, per-shock detail pages with probability charts, and aggregate statistics.
@@ -124,6 +136,7 @@ python analysis/run_all.py
 # Compute trade simulator data
 python scripts/add_fade_pnl.py
 python scripts/compute_distribution.py
+python scripts/flag_recent_shocks.py
 
 # Start dashboard
 cd dashboard && npm install && npm run dev
