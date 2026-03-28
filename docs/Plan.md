@@ -66,15 +66,34 @@ This directly addresses the brief's call for "portfolio or strategy views that c
 A clean, demo-ready Next.js web app deployed on Vercel showing:
 
 - **Configurable controls**: shock threshold slider (θ), horizon picker, category filter — all dynamically refilter the data
-- **🔴 LIVE signals**: shocks from the last 48 hours flagged as potentially actionable — transforms from retrospective to forward-looking
 - Top Shocks table — sortable by size, category, time, reversion outcome
 - Aggregate histogram — distribution of post-shock moves
 - Summary stats panel — reversion rate, mean magnitude, sample size, edge statistics
 - Category breakdown — reversion rates by market type
 
-### F. Stretch: Advanced Features
+### F. Live Shock Monitor (Core — This Is What Makes It a Trading Tool)
 
-Only after MVP (A–E) is fully working:
+A Python process (`scripts/live_monitor.py`) that runs continuously and transforms ShockTest from a historical dashboard into a **live trading signal system**:
+
+1. **Polls Polymarket** every 2 minutes for latest prices on all tracked markets
+2. **Runs shock detection** on incoming data using the same algorithm and threshold
+3. **When a new shock fires** → writes a live alert to MongoDB with:
+   - The shock details (market, delta, timestamps)
+   - **Historical edge context**: win rate, average P&L, and sample size for that shock's category — pulled from the backtest stats
+   - `is_live_alert: true`, `is_recent: true`, `hours_ago: 0`
+4. **Dashboard surfaces it immediately**: the Next.js frontend shows a prominent alert banner:
+
+   > 🔴 **SHOCK DETECTED 8 min ago** — "Will BTC hit $100k by June?" dropped 65% → 53% (-12pp)
+   > Historical edge: 65% of crypto shocks this size revert within 6h | Avg return: $0.034/$1
+   > **[Analyze this shock →]**
+
+5. **User clicks through** → detail page with payoff curve, scenario panel, and trade simulator pre-loaded with the live shock's parameters
+
+This is the critical differentiator. The brief asks for tools that "help real traders make better decisions." A live monitor that says "a shock just happened, here's the historical edge, do you want to fade it?" is exactly that. Leave it running during the demo — if a shock fires while judges are watching, that's the winning moment.
+
+### G. Stretch: Advanced Features
+
+Only after MVP (A–F) is fully working:
 
 - **Cross-market shock correlation**: do shocks cluster across categories? Co-occurrence matrix displayed as heatmap
 - **Transaction cost modeling**: deduct 1–2% slippage per trade, report adjusted EV
@@ -165,10 +184,10 @@ Where the distribution parameters come from the historical backtest for that cat
 | "Scenario analysis tools that show how a position performs if an event resolves sooner vs later" | **Scenario Panel** with three sliders: target probability, days to resolution (with time-decay model), and position size — outputs update instantly |
 | "Portfolio or strategy views that combine multiple markets into a single payoff graph" | **Portfolio Builder** page: select 2–4 shocks, set position sizes, see combined payoff graph with individual lines + bold portfolio line + diversification stats |
 | "Produce concrete analytical or visual outputs" | Payoff curves, scenario outputs, P&L timelines, payoff distribution histograms, aggregate histograms, category breakdown tables |
-| "Be grounded in real trading use cases" | Fade-the-shock is a real mean-reversion strategy; 🔴 LIVE signals flag shocks from the last 48h that are still tradeable |
+| "Be grounded in real trading use cases" | **Live Shock Monitor** polls Polymarket every 2 min, detects shocks in real-time, and surfaces them with historical edge context — this is a live trading signal system, not a retrospective dashboard |
 | "Quality of insight and correctness of modeling" | Falsifiable hypothesis, transparent methodology, explicit caveats about in-sample bias and transaction costs, time-decay model for resolution timing |
-| "Strength of visualization and UX" | Interactive payoff curves, 3-slider scenario panel, trade simulator, P&L timeline, configurable dashboard controls, live signal badges |
-| "Technical depth and execution" | Multi-source data pipeline, configurable event detection, LLM categorization, cross-market correlation analysis, portfolio diversification math, full-stack deployment |
+| "Strength of visualization and UX" | Interactive payoff curves, 3-slider scenario panel, trade simulator, P&L timeline, configurable dashboard controls, live alert banners with historical edge context |
+| "Technical depth and execution" | Multi-source data pipeline, **live polling loop with real-time shock detection**, configurable event detection, LLM categorization, cross-market correlation analysis, portfolio diversification math, full-stack deployment |
 | "Creativity and originality" | Novel approach: treating prediction market overreactions as a systematic signal, quantifying the edge, and building TradFi-style tools (payoff curves, scenario analysis, portfolio builder) around it |
 | "Clarity of explanation" | Concrete user story in demo: "You see a live shock → you check the payoff curve → you run scenarios → you size the trade → you add it to a portfolio" |
 
@@ -199,8 +218,8 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 | 2–6 | Fetch 50+ Polymarket markets → MongoDB. Pull Manifold markets. | Write delta helpers, start shock detector | Build shocks table + API routes with dummy data |
 | 6–10 | Resample/validate data quality, expand market count | Run shock detection at scale, verify shocks | Build price chart component, per-shock detail page |
 | **10–16** | **Expand to 100+ markets. Compute backtest results (fade P&L per shock). Support Person 2/3.** | **Post-shock outcomes + Gemini categorization + aggregate stats + backtest statistics (win rate, EV, distribution params). Write findings text.** | **Build trade simulator component + configurable controls (θ slider, horizon picker). Wire real data into all components.** |
-| 16–20 | MVP complete — write README, support bugs | Validate results, refine findings text, help Person 3 with data interpretation | Wire trade simulator to real backtest data. Full integration pass. Deploy to Vercel. |
-| 20–24 | Stretch features or README/Devpost | Stretch: category breakdown analysis, Devpost description | Polish UI for Best UI/UX. Film reel. Final deploy + submission. |
+| 16–20 | **Build + deploy `live_monitor.py` (CORE).** Flag recent shocks. Write README, support bugs | Validate results, refine findings text, help Person 3 with data interpretation | Wire trade simulator to real backtest data. Payoff curve + scenario panel. Full integration pass. Deploy to Vercel. |
+| 20–24 | **Keep live monitor running during demo.** Help with Devpost. | Stretch: correlation analysis, Devpost description | Portfolio Builder page. Polish UI. Film reel. Final deploy + submission. |
 
 ---
 
@@ -240,10 +259,16 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 - Start wiring real data: check `/api/shocks`, `/api/stats`, `/api/markets` — replace dummy data as it becomes available
 - New API route: `/api/backtest` — returns backtest stats and distribution data from `shock_results`
 
-### Hours 16–20 · Integration + MVP
+### Hours 16–20 · Integration + MVP + Live Monitor
 
 **Person 1**
-- MVP data complete — all markets fetched, all shocks computed, backtest stored
+- **Build `scripts/live_monitor.py` (CORE — highest priority remaining task)**
+  - Polls Polymarket every 2 min for latest prices on tracked markets
+  - Runs shock detection on fresh data
+  - When new shock detected → writes live alert to `shock_events` with `is_live_alert: true` + historical edge context (win rate, avg P&L for that category)
+  - Keeps `hours_ago` fresh on all recent shocks
+  - **Leave running in terminal during demo**
+- Run `flag_recent_shocks.py` to backfill `is_recent`/`hours_ago` on existing shocks
 - Write `README.md` with hypothesis, methodology, results, tech stack
 - Support Person 3 with data format issues
 
@@ -255,25 +280,29 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 **Person 3**
 - Full integration: every component reads from real API routes, no dummy data
 - Trade simulator wired to real backtest distribution data
+- Payoff curve + scenario panel on detail page
+- **Live alert banner** at top of dashboard for `is_live_alert: true` shocks:
+  > 🔴 SHOCK DETECTED 8 min ago — "BTC above $100k by June?" dropped 65% → 53% (-12pp)
+  > Historical edge: 65% win rate | Avg return: $0.034/$1 | **[Analyze this shock →]**
 - Configurable controls dynamically filter the data
 - FindingsBlock component displays Person 2's findings text with injected numbers
 - Deploy to Vercel, point GoDaddy domain
-- Test: all pages load, all charts render, simulator produces sensible outputs
 
-### Hours 20–24 · Polish + Stretch + Submission
+### Hours 20–24 · Portfolio Builder + Polish + Submission
 
 **Person 1**
-- Stretch: expand backtest with transaction cost assumptions (e.g., 1% slippage deduction)
-- Help with README and Devpost
+- **Keep `live_monitor.py` running** — if a shock fires during the demo, that's the winning moment
+- Polish README with final numbers
+- Help with Devpost submission
 
 **Person 2**
-- Stretch: statistical significance test on category differences
-- Stretch: "recent shocks" view — flag shocks from last 24–48h as potentially actionable
-- Finalize Devpost description
+- Stretch: cross-market shock correlation analysis
+- Finalize Devpost description with final numbers
 
 **Person 3**
-- **30-min UI polish pass**: consistent color palette, readable chart labels, smooth transitions, responsive layout, visual hierarchy (headline finding = most prominent)
-- **Film 30-sec reel**: show a dramatic shock → click into it → show trade simulator output → end with URL
+- **Build Portfolio Builder page** (`/portfolio`) — select 2–4 shocks, set position sizes, see combined payoff graph
+- **30-min UI polish pass**: consistent color palette, readable chart labels, smooth transitions, responsive layout
+- **Film 30-sec reel**: show live alert → click through → payoff curve → scenario panel → portfolio builder → end with URL
 - Final `vercel --prod` deploy
 - Submit on Devpost: select Prediction Markets, Most Creative Hack, Best UI/UX
 
@@ -281,17 +310,20 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 
 ## 8. Demo Script (3 Minutes)
 
-> **Opening Hook (30 sec)**
-> *"Prediction markets are supposed to be efficient — but what if they consistently overreact to breaking news? We built a tool that detects overreactions in Polymarket data and tells you exactly what the historical edge looks like if you fade them. Think of it as a quant signal desk for prediction markets."*
+> **Opening Hook (20 sec)**
+> *"Prediction markets overreact to breaking news. We built a live trading tool that detects those overreactions in real-time on Polymarket, tells you the historical edge, and lets you size the trade before you take it."*
 >
-> **Show the Signal (45 sec)**
-> Show the dashboard with configurable controls. Adjust the θ slider to show how many shocks appear at different thresholds. Click into one compelling example — a political market that jumped 15pp in one hour. Show the probability chart with the shock highlighted in red.
+> **Live Signal (40 sec)**
+> Point to the terminal running `live_monitor.py`: *"This is polling Polymarket every 2 minutes. When it detects a shock—"* Show a 🔴 LIVE alert on the dashboard. *"—it immediately surfaces it with historical context: win rate, expected P&L, category. This happened X minutes ago."*
 >
-> **The Edge (60 sec)**
-> Show the aggregate stats and histogram. State the headline: *"In our sample of X shocks across Y Polymarket markets, Z% reverted within 6 hours. Political markets reverted at A%, crypto at B%."* Then show the trade simulator: *"If you had faded this shock with a $100 position, your expected P&L based on historical data would be $X, with a Y% win rate."* Show the payoff distribution chart.
+> **The Trading Tools (60 sec)**
+> Click into the live shock. Show the detail page top to bottom: *"First, the payoff curve — your P&L at every possible resolution outcome."* Drag the scenario sliders: *"What if probability moves to 70%? What if resolution is next week vs. next month?"* Show the trade simulator: *"Historically, Z% of crypto shocks this size revert within 6 hours. Enter $200 — expected P&L is $6.80."* Show the P&L timeline: *"Here's how that position would have evolved hour by hour."*
 >
-> **Why It Matters (45 sec)**
-> *"This isn't a black-box trading bot — it's a decision support tool. It shows you the edge, lets you size the position, and gives you the historical distribution so you can make an informed decision. All data is live from Polymarket's API, stored in MongoDB Atlas, categories tagged by Gemini, and the app is live at shocktest.xyz."*
+> **Portfolio (40 sec)**
+> Navigate to Portfolio Builder. Select 3 shocks from different categories. *"Now I have a portfolio of three independent fade bets. Combined payoff graph — the bold line is my total portfolio. Diversification cuts variance by 40%."*
+>
+> **Close (20 sec)**
+> *"ShockTest is a complete trading workflow: detect the signal, analyze the edge, size the position, build the portfolio. All live from Polymarket's API, running at shocktest.xyz."*
 
 ---
 
@@ -299,11 +331,12 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 
 | What You Did | How You Say It |
 |-------------|----------------|
-| Shock detection | Implemented a configurable event detection algorithm on probability time series from Polymarket, analogous to volatility spike detection in equity markets |
+| Shock detection + live monitor | Built a configurable event detection algorithm on Polymarket probability time series, plus a live polling system that detects shocks in real-time and surfaces them with historical edge context |
 | Post-shock analysis + backtest | Designed and ran a quantitative mean-reversion study across 100+ prediction markets, then built a fade-strategy backtest reporting win rate, EV, and drawdown |
-| Trade simulator | Built an interactive position-sizing tool that uses historical reversion distributions to project expected P&L, win rate, and scenario outcomes for user-specified trades |
+| Trading tools | Built interactive payoff curves, scenario analysis with time-decay modeling, and a position-sizing simulator that projects P&L from historical reversion distributions |
+| Portfolio builder | Built a multi-market portfolio constructor showing combined payoff graphs with diversification benefit calculations (variance reduction via 1/√N for independent bets) |
 | Category breakdown | Used LLM-based classification (Gemini) to auto-tag market categories, then identified differential reversion patterns suggesting behavioral vs. informational drivers |
-| Full stack delivery | Shipped a production trading tool (Next.js + Vercel) integrating Polymarket's API, MongoDB Atlas, Gemini, interactive data visualization, and a trade simulator — in 24 hours |
+| Full stack delivery | Shipped a live trading signal system (Next.js + Vercel + Python live monitor) integrating Polymarket's API, MongoDB Atlas, Gemini, payoff curves, scenario analysis, and portfolio builder — in 24 hours |
 
 > **Interview angle:** *"I built a trading signal and decision tool for prediction markets. We found that X% of large Polymarket probability shocks reversed within 6 hours. We then built an interactive simulator where a trader can input a position size and see the expected P&L distribution based on historical data — broken down by market category. It's a research finding turned into a usable trading tool."*
 

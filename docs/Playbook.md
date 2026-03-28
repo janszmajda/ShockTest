@@ -709,11 +709,11 @@ Start replacing dummy data with real API calls across all components:
 
 ### Person 1 (Data Pipeline)
 
-**Goal:** MVP data is complete. Flag recent shocks. Write README. Support Person 3.
+**Goal:** Build and deploy the live shock monitor. This is Person 1's most important remaining task — it transforms the entire project from retrospective to live.
 
-**Hour 16–17 · Flag Recent/Live Shocks (HIGH PRIORITY — hits "real-world trading applicability")**
+**Hour 16–17 · Flag Existing Shocks + Build Live Monitor**
 
-This transforms the project from retrospective research into a forward-looking trading tool. Flag shocks from the last 48 hours where the market is still active — these are shocks a trader could still act on.
+First, run `flag_recent_shocks.py` to backfill existing shocks:
 
 ```python
 # flag_recent_shocks.py
@@ -752,7 +752,216 @@ for shock in shocks:
 print(f"\n{recent_count} recent shocks flagged out of {len(shocks)} total")
 ```
 
-- 🔗 Ping Person 3: shock_events now have `is_recent` and `hours_ago` fields — add a "Live Signals" badge/tab to the dashboard
+Then build the live monitor — **this is the single most impactful feature for the Polymarket track**:
+
+```python
+# scripts/live_monitor.py
+"""
+Live shock monitor. Runs in a loop, fetches latest Polymarket prices,
+detects new shocks, writes alerts to MongoDB with historical edge context.
+
+Run with: python scripts/live_monitor.py
+Keep it running in a terminal during the demo.
+"""
+import requests
+import time
+from datetime import datetime, timezone, timedelta
+from pymongo import MongoClient
+import os
+
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
+
+# Load backtest stats for context
+aggregate = db["shock_results"].find_one({"_id": "aggregate_stats"})
+backtest = aggregate.get("backtest", {}) if aggregate else {}
+by_category = backtest.get("by_category", {})
+
+THETA = 0.08          # shock threshold
+POLL_INTERVAL = 120   # seconds between checks
+LOOKBACK_POINTS = 30  # how many recent price points to scan
+
+def fetch_latest_prices():
+    """Fetch current prices for all tracked Polymarket markets."""
+    markets = list(db["market_series"].find(
+        {"source": "polymarket"},
+        {"market_id": 1, "token_id": 1, "question": 1, "category": 1}
+    ))
+    
+    updated = 0
+    for market in markets:
+        try:
+            token_id = market.get("token_id")
+            if not token_id:
+                continue
+            
+            resp = requests.get(
+                "https://gamma-api.polymarket.com/prices/history",
+                params={"tokenId": token_id, "interval": "1h", "fidelity": 2},
+                timeout=10
+            )
+            if resp.status_code != 200:
+                continue
+            
+            history = resp.json()
+            if not history or len(history) == 0:
+                continue
+            
+            new_points = []
+            for point in history[-LOOKBACK_POINTS:]:
+                t = point.get("t") or point.get("timestamp")
+                p = float(point.get("p") or point.get("price", 0))
+                new_points.append({"t": t, "p": p})
+            
+            if new_points:
+                db["market_series"].update_one(
+                    {"_id": market["_id"]},
+                    {"$addToSet": {"series": {"$each": new_points}}}
+                )
+                updated += 1
+            
+            time.sleep(0.3)
+        except Exception:
+            continue
+    
+    return updated
+
+
+def detect_live_shocks():
+    """Run shock detection on recent data, write new alerts to MongoDB."""
+    now = datetime.now(timezone.utc)
+    markets = list(db["market_series"].find({"source": "polymarket"}))
+    
+    new_shocks = []
+    
+    for market in markets:
+        series = market.get("series", [])
+        if len(series) < 10:
+            continue
+        
+        series = sorted(series, key=lambda x: x["t"])
+        recent = series[-LOOKBACK_POINTS:]
+        
+        if len(recent) < 2:
+            continue
+        
+        p_first = recent[0]["p"]
+        p_last = recent[-1]["p"]
+        delta = p_last - p_first
+        
+        if abs(delta) < THETA:
+            continue
+        
+        # Skip if we already logged this shock in the last 2 hours
+        existing = db["shock_events"].find_one({
+            "market_id": market["market_id"],
+            "is_live_alert": True,
+            "detected_at": {"$gte": (now - timedelta(hours=2)).isoformat()}
+        })
+        if existing:
+            continue
+        
+        # New live shock! Build the alert with historical edge context
+        category = market.get("category", "other")
+        cat_stats = by_category.get(category, {})
+        
+        alert = {
+            "market_id": market["market_id"],
+            "source": market.get("source", "polymarket"),
+            "question": market.get("question", ""),
+            "category": category,
+            "t1": datetime.fromtimestamp(recent[0]["t"], tz=timezone.utc).isoformat()
+                if isinstance(recent[0]["t"], (int, float))
+                else recent[0]["t"],
+            "t2": datetime.fromtimestamp(recent[-1]["t"], tz=timezone.utc).isoformat()
+                if isinstance(recent[-1]["t"], (int, float))
+                else recent[-1]["t"],
+            "p_before": round(float(p_first), 4),
+            "p_after": round(float(p_last), 4),
+            "delta": round(float(delta), 4),
+            "abs_delta": round(abs(float(delta)), 4),
+            # Historical edge context for the frontend
+            "historical_win_rate": cat_stats.get("win_rate_6h", backtest.get("win_rate_6h")),
+            "historical_avg_pnl": cat_stats.get("avg_pnl_6h", backtest.get("avg_pnl_per_dollar_6h")),
+            "historical_sample_size": cat_stats.get("sample_size", backtest.get("total_trades")),
+            # Live alert metadata
+            "is_recent": True,
+            "is_live_alert": True,
+            "hours_ago": 0,
+            "detected_at": now.isoformat(),
+            # Post-shock fields null (hasn't happened yet)
+            "post_move_1h": None, "post_move_6h": None, "post_move_24h": None,
+            "reversion_1h": None, "reversion_6h": None, "reversion_24h": None,
+        }
+        
+        db["shock_events"].insert_one(alert)
+        new_shocks.append(alert)
+        
+        print(f"\n{'='*60}")
+        print(f"🔴 LIVE SHOCK DETECTED")
+        print(f"Market: {alert['question']}")
+        print(f"Move: {alert['p_before']:.0%} → {alert['p_after']:.0%} (Δ={alert['delta']:+.0%})")
+        print(f"Category: {category}")
+        win_rate = alert['historical_win_rate']
+        avg_pnl = alert['historical_avg_pnl']
+        if win_rate and avg_pnl:
+            print(f"Historical edge: {win_rate:.0%} win rate, avg P&L ${avg_pnl:.4f}/$")
+        print(f"Signal: FADE {'DOWN' if delta > 0 else 'UP'}")
+        print(f"{'='*60}")
+    
+    return new_shocks
+
+
+def update_hours_ago():
+    """Keep hours_ago fresh for all recent shocks."""
+    now = datetime.now(timezone.utc)
+    recent = list(db["shock_events"].find({"is_recent": True}))
+    for shock in recent:
+        t2_str = shock.get("detected_at") or shock.get("t2")
+        try:
+            t2 = datetime.fromisoformat(t2_str.replace("Z", "+00:00"))
+            hours_ago = (now - t2).total_seconds() / 3600
+            db["shock_events"].update_one(
+                {"_id": shock["_id"]},
+                {"$set": {"hours_ago": round(hours_ago, 1), "is_recent": hours_ago <= 48}}
+            )
+        except Exception:
+            continue
+
+
+if __name__ == "__main__":
+    print("ShockTest Live Monitor")
+    print(f"Polling every {POLL_INTERVAL}s | Threshold: {THETA}")
+    print(f"Backtest context: win_rate_6h={backtest.get('win_rate_6h', 'N/A')}")
+    print("Ctrl+C to stop\n")
+    
+    while True:
+        try:
+            ts = datetime.now().strftime('%H:%M:%S')
+            print(f"[{ts}] Fetching prices...", end=" ")
+            n = fetch_latest_prices()
+            print(f"{n} updated.", end=" ")
+            
+            print("Scanning...", end=" ")
+            new = detect_live_shocks()
+            print(f"🔴 {len(new)} NEW!" if new else "no new shocks.")
+            
+            update_hours_ago()
+            time.sleep(POLL_INTERVAL)
+        except KeyboardInterrupt:
+            print("\nStopping monitor.")
+            break
+        except Exception as e:
+            print(f"\nError: {e}")
+            time.sleep(30)
+```
+
+Run it:
+```bash
+python scripts/live_monitor.py
+```
+
+- 🔗 Ping Person 3: live alerts will now appear in `shock_events` with `is_live_alert: true` — build the alert banner
+- ✅ Done when: monitor runs without errors, polls successfully, and would detect a shock if one occurred
 
 **Hour 17–20 · README + Support**
 
@@ -871,21 +1080,23 @@ A simulated fade-the-shock strategy produced a {win_rate:.0%} win rate with
 Draft the Devpost description:
 ```
 ## What it does
-ShockTest is a trading toolkit for Polymarket built around a single insight: prediction 
-markets systematically overreact to sudden news. We detect these overreactions, quantify 
-the historical edge, and give traders interactive tools to act on it — payoff curves, 
-scenario analysis, a trade simulator, and a multi-market portfolio builder.
+ShockTest is a **live trading signal system** for Polymarket. A Python monitor polls 
+Polymarket every 2 minutes, detects probability shocks in real-time, and surfaces 
+them on an interactive dashboard with full historical edge context — win rate, expected 
+P&L, and category-specific statistics. Traders can then analyze each shock with payoff 
+curves, scenario analysis, a trade simulator, and a portfolio builder that combines 
+multiple fade positions into a single payoff graph.
 
 ## How we built it
-Python backend fetches 100+ markets from Polymarket's Gamma API and Manifold, stores 
+Python backend fetches 1,000+ markets from Polymarket's Gamma API and Manifold, stores 
 price histories in MongoDB Atlas, detects probability shocks via a configurable 
-threshold scanner, and computes post-shock outcomes at 1h/6h/24h horizons. Google 
-Gemini auto-categorizes markets. The Next.js dashboard deployed on Vercel features 
-interactive payoff curves for every shock, a scenario analysis panel with sliders for 
-probability/time/position size, a fade-strategy trade simulator backed by historical 
-backtest data, a P&L timeline chart, live signal detection for recent shocks, and a 
-Portfolio Builder where traders can combine multiple fade positions and see the 
-combined payoff graph with diversification benefits.
+threshold scanner, and computes post-shock outcomes at 1h/6h/24h horizons. A live 
+monitor process continuously polls for new shocks and writes alerts to MongoDB with 
+historical edge context. Google Gemini auto-categorizes markets. The Next.js dashboard 
+deployed on Vercel features live alert banners with auto-refresh, interactive payoff 
+curves, a scenario analysis panel with time-decay modeling, a fade-strategy trade 
+simulator backed by historical backtest data, P&L timeline charts, and a Portfolio 
+Builder where traders combine multiple fade positions into a combined payoff graph.
 
 ## What we found
 [Insert headline result with real numbers]
@@ -1322,15 +1533,96 @@ export default function PnlTimeline({ series, shockT2, shockDelta, positionSize 
 
 Wire this into the shock detail page — it reads from the same market series data that PriceChart already uses, and takes `positionSize` from the TradeSimulator state. Lift `positionSize` state up to the detail page so both components share it.
 
-**Live Signals Badge (HIGH PRIORITY — hits "real-world trading applicability")**
+**Live Alert Banner + Badges (CRITICAL — this is what makes it a live trading tool)**
 
-In the ShocksTable, add visual indicators for recent/actionable shocks:
+The live monitor (Person 1) writes shocks with `is_live_alert: true` to MongoDB. Person 3 needs to surface these prominently.
+
+**1. Live Alert Banner at top of main dashboard** (above everything else):
+
+```typescript
+// components/LiveAlertBanner.tsx
+'use client';
+
+import Link from 'next/link';
+
+interface LiveAlert {
+  _id: string;
+  market_id: string;
+  question: string;
+  category: string;
+  delta: number;
+  p_before: number;
+  p_after: number;
+  hours_ago: number;
+  historical_win_rate: number | null;
+  historical_avg_pnl: number | null;
+}
+
+export default function LiveAlertBanner({ alerts }: { alerts: LiveAlert[] }) {
+  if (alerts.length === 0) return null;
+  
+  return (
+    <div className="space-y-2 mb-6">
+      {alerts.map(alert => (
+        <Link
+          key={alert._id}
+          href={`/shock/${alert.market_id}`}
+          className="block bg-red-50 border-l-4 border-red-500 p-4 rounded hover:bg-red-100 transition"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse">
+              🔴 LIVE
+            </span>
+            <span className="text-sm text-gray-500">
+              {alert.hours_ago < 1 
+                ? `${Math.round(alert.hours_ago * 60)} min ago`
+                : `${Math.round(alert.hours_ago)}h ago`}
+            </span>
+          </div>
+          <p className="font-semibold text-gray-900">{alert.question}</p>
+          <p className="text-sm text-gray-700">
+            Moved from {(alert.p_before * 100).toFixed(0)}% → {(alert.p_after * 100).toFixed(0)}%
+            <span className={`ml-1 font-bold ${alert.delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({alert.delta > 0 ? '+' : ''}{(alert.delta * 100).toFixed(0)}pp)
+            </span>
+          </p>
+          {alert.historical_win_rate && (
+            <p className="text-sm text-blue-700 mt-1">
+              Historical edge: <strong>{(alert.historical_win_rate * 100).toFixed(0)}% win rate</strong>
+              {alert.historical_avg_pnl && (
+                <> · Avg return: <strong>${alert.historical_avg_pnl.toFixed(4)}/$1</strong></>
+              )}
+              {' '}· <span className="underline">Analyze this shock →</span>
+            </p>
+          )}
+        </Link>
+      ))}
+    </div>
+  );
+}
+```
+
+Wire into main page:
+```typescript
+// In page.tsx:
+const liveAlerts = shocks.filter(s => s.is_live_alert && s.is_recent);
+
+// In JSX, at the very top above StatsCards:
+<LiveAlertBanner alerts={liveAlerts} />
+```
+
+**2. Table badges** (same as before but also handles live alerts):
 
 ```typescript
 // In ShocksTable.tsx, add to each row:
-{shock.is_recent && (
-  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
+{shock.is_live_alert && (
+  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse">
     🔴 LIVE
+  </span>
+)}
+{shock.is_recent && !shock.is_live_alert && (
+  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+    Recent
   </span>
 )}
 {!shock.is_recent && shock.hours_ago && (
@@ -1338,7 +1630,19 @@ In the ShocksTable, add visual indicators for recent/actionable shocks:
 )}
 ```
 
-Also add a "Live Signals" filter button to DashboardControls that filters to only `is_recent === true` shocks. These go at the top of the table.
+**3. Auto-refresh** — poll `/api/shocks` every 60 seconds so new live alerts appear without page reload:
+
+```typescript
+// In page.tsx, add auto-refresh:
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetch('/api/shocks').then(r => r.json()).then(setShocks);
+  }, 60000); // refresh every 60s
+  return () => clearInterval(interval);
+}, []);
+```
+
+Also add a "Live Signals" filter button to DashboardControls that filters to only `is_recent === true` shocks. Live alerts always sort to the top of the table.
 
 **FindingsBlock + Footer + Deploy**
 
@@ -1380,7 +1684,7 @@ vercel --prod
 
 Point GoDaddy domain to Vercel (CNAME to `cname.vercel-dns.com`).
 
-- ✅ Done when: `shocktest.xyz` loads with real data, payoff curve + scenario panel + trade simulator work on detail pages, P&L timeline chart renders, 🔴 LIVE badges appear on recent shocks, controls filter the dashboard
+- ✅ Done when: `shocktest.xyz` loads with real data, live alert banner surfaces `is_live_alert` shocks, payoff curve + scenario panel + trade simulator work on detail pages, P&L timeline chart renders, 🔴 LIVE badges in table, auto-refresh polls every 60s, controls filter the dashboard
 
 ---
 
@@ -1388,8 +1692,8 @@ Point GoDaddy domain to Vercel (CNAME to `cname.vercel-dns.com`).
 
 ### Person 1
 
+- **Keep `live_monitor.py` running in a terminal** — if a shock fires during the demo, that's the winning moment
 - Polish README with final numbers
-- Stretch: add transaction cost assumptions to backtest (e.g., deduct 1-2% slippage per trade, report adjusted EV)
 - Help with Devpost submission
 
 ### Person 2
@@ -1724,28 +2028,32 @@ Use Claude Code to:
 **Hour 22–23 · Film Reel + Demo Prep**
 
 Screen-record a 30-second walkthrough:
-1. Show the dashboard with 🔴 LIVE badges — drag the θ slider
-2. Click a dramatic shock → show price chart + payoff curve
-3. Drag the scenario sliders — P&L updates dynamically
-4. Switch to Portfolio Builder → select 3 shocks → show combined payoff graph
+1. Show the live monitor terminal running — "polling Polymarket every 2 minutes"
+2. Show the dashboard with a 🔴 LIVE alert banner at the top
+3. Click through → payoff curve + drag scenario sliders
+4. Switch to Portfolio Builder → select 3 shocks → combined payoff graph
 5. End card: `shocktest.xyz`
 
 Post to Instagram as reel, tag @yhack.yale.
 
-Prepare demo flow for judges (**use a concrete user story — hits "clarity of explanation"**):
+Prepare demo flow for judges (**show the live monitor terminal on a second screen or split-screen**):
 
-> *"You're a Polymarket trader. You open ShockTest and see a 🔴 LIVE signal — BTC-above-100k just dropped 12pp in 45 minutes. You click in and see three things: First, the payoff curve — your P&L at every possible outcome. Second, the scenario panel — what if probability moves to 60%? What if the market resolves in a week vs. a month? You drag the sliders and see your P&L update instantly. Third, the trade simulator shows the historical edge: crypto shocks this size revert 65% of the time within 6 hours. You enter $200, expected P&L is $6.80. Then you go to the Portfolio Builder, add two more shocks from different categories, and see the combined payoff — diversification cuts your variance by 40%. Now you have a portfolio of three independent fade bets with known risk parameters."*
+> *"ShockTest is a live trading signal system for Polymarket. This terminal is polling Polymarket every 2 minutes [point to terminal]. When it detects an overreaction — a sudden probability shock — it writes an alert to our database with the historical edge for that category. The dashboard picks it up automatically [point to 🔴 LIVE banner]. This shock happened X minutes ago. Let me show you what a trader does with this signal."*
+>
+> *"First, the payoff curve — P&L at every possible resolution outcome. Second, scenario analysis — what if probability moves to 70%? What if the market resolves next week vs. next month? [drag sliders]. Third, the trade simulator — based on 1,000+ historical shocks, crypto shocks this size revert 65% of the time. I enter $200 — expected P&L is $6.80, 65% win rate."*
+>
+> *"Now I go to the Portfolio Builder, add two more shocks from different categories, set my position sizes, and see the combined payoff graph. Diversification cuts variance by 40%. I now have a portfolio of three independent fade bets with quantified risk."*
+>
+> *"The complete workflow: detect the signal in real-time, analyze the edge, size the trade, build the portfolio. All live from Polymarket's API, running at shocktest.xyz."*
 
 Step-by-step:
-1. Open `shocktest.xyz`
-2. Point out the 🔴 LIVE badges — "these are actionable right now"
-3. Adjust θ slider — shocks appear/disappear ("you define what counts as overreaction")
-4. Click into a compelling shock → show payoff curve ("your P&L at every possible resolution")
-5. Drag scenario sliders — "what if probability moves to 70%? What if resolution is next week?"
-6. Show trade simulator — "historically, Z% of these shocks revert within 6 hours"
-7. Navigate to Portfolio Builder → select 3 shocks → show combined payoff graph
-8. State the headline: "We found a measurable, systematic edge in Polymarket overreactions"
-9. Close with caveats: "in-sample, ignores slippage — this is a decision tool, not a guarantee"
+1. Open `shocktest.xyz` — point to 🔴 LIVE alert banner
+2. Show the live monitor terminal: "this is polling Polymarket right now"
+3. Click into the live shock → payoff curve, scenario panel, trade simulator
+4. Drag scenario sliders — outputs update dynamically
+5. Navigate to Portfolio Builder → select 3 shocks → combined payoff graph
+6. State the headline: "We found a measurable, systematic edge in Polymarket overreactions — and built a live system to act on it"
+7. Close: "in-sample, ignores slippage — decision tool, not a guarantee"
 
 **Hour 23–24 · Final Deploy + Submit**
 
@@ -1782,6 +2090,11 @@ Add these to `dashboard/lib/types.ts`:
 //   fade_pnl_1h: number | null;
 //   fade_pnl_6h: number | null;
 //   fade_pnl_24h: number | null;
+//   is_live_alert: boolean;             // true if detected by live_monitor.py
+//   detected_at: string | null;         // ISO timestamp of when monitor detected it
+//   historical_win_rate: number | null;  // backtest win rate for this category
+//   historical_avg_pnl: number | null;   // backtest avg P&L for this category
+//   historical_sample_size: number | null;
 
 // New interfaces:
 
@@ -1845,7 +2158,7 @@ export interface CorrelationMatrix {
 
 | Page | Route | Key Components |
 |------|-------|---------------|
-| Main Dashboard | `/` | Header → DashboardControls (θ slider, horizon, category) → StatsCards → FindingsBlock → ShocksTable (with 🔴 LIVE badges) → Histogram → CategoryBreakdown → Footer |
+| Main Dashboard | `/` | **LiveAlertBanner** (top) → Header → DashboardControls (θ slider, horizon, category) → StatsCards → FindingsBlock → ShocksTable (with 🔴 LIVE badges, auto-refresh 60s) → Histogram → CategoryBreakdown → Footer |
 | Shock Detail | `/shock/[id]` | PriceChart → **PayoffCurve** → **ScenarioPanel** (3 sliders) → TradeSimulator → PnlTimeline → Caveats |
 | **Portfolio Builder** | **`/portfolio`** | **Shock selector → Position size inputs → Portfolio stats (expected P&L, diversification) → Combined payoff graph → Caveats** |
 
@@ -1863,6 +2176,7 @@ export interface CorrelationMatrix {
 | Hour 14 | Person 2 | Person 3 | Aggregate stats + categories in MongoDB → `/api/stats` returns real data |
 | **Hour 14** | **Person 1** | **Person 3** | **Backtest + distribution data in MongoDB → `/api/backtest` returns real data** |
 | **Hour 17** | **Person 1** | **Person 3** | **`is_recent` + `hours_ago` fields on shock_events → add 🔴 LIVE badges to table** |
+| **Hour 17** | **Person 1** | **Person 3** | **`live_monitor.py` running → live alerts with `is_live_alert: true` appear in shock_events → build LiveAlertBanner + auto-refresh** |
 | Hour 18 | Person 2 | Person 3 | Findings paragraph text for dashboard |
 | Hour 22 | Person 2 | Person 3 | Devpost project description draft |
 | Hour 22 | Person 2 | Person 3 | (stretch) Correlation matrix in shock_results → display as table/heatmap |
