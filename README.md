@@ -32,11 +32,13 @@ We quantify which is more common, how strong the effect is, and whether it diffe
 **By category (6h):**
 | Category | Win Rate | Avg P&L | Sample Size |
 |----------|----------|---------|-------------|
-| Politics | 53.3% | +$0.025 | 29 |
-| Sports | 28.6% | -$0.013 | 6 |
-| Other | 57.1% | +$0.048 | 145 |
+| Politics | 64.7% | +$0.040 | 662 |
+| Crypto | 53.5% | +$0.018 | 302 |
+| Other | 53.9% | +$0.039 | 145 |
+| Sports | 56.1% | +$0.048 | 90 |
+| Science | 60.6% | +$0.030 | 33 |
 
-**Finding:** Across 1,337 probability shocks detected in 1,069 Polymarket and Manifold markets, 59.9% showed mean reversion within 6 hours. A simulated fade-the-shock strategy produced a 60% win rate with +3.45% expected return per dollar risked. Political markets reverted at 53% while non-sports markets showed 57% reversion — suggesting most prediction market shocks are overreactions rather than genuine information.
+**Finding:** Across 1,337 probability shocks detected in 1,069 Polymarket and Manifold markets, 59.9% showed mean reversion within 6 hours. A simulated fade-the-shock strategy produced a 60% win rate with +$0.035 expected return per dollar risked. Political markets showed the strongest edge at 64.7% win rate — suggesting political shocks are most often overreactions to headlines, while crypto markets (53.5%) revert less reliably.
 
 ## How to Use It
 
