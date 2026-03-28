@@ -122,12 +122,16 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           <PriceChart series={series} shockT1={shockT1} shockT2={shockT2} />
         </div>
 
-        {backtestData.backtest && backtestData.distribution_6h && (
+        {backtestData.backtest && (
           <TradeSimulator
             shockDelta={shock.delta}
             shockCategory={shock.category}
             backtest={backtestData.backtest}
-            distribution={backtestData.distribution_6h}
+            distributions={{
+              "1h": backtestData.distribution_1h,
+              "6h": backtestData.distribution_6h,
+              "24h": backtestData.distribution_24h,
+            }}
           />
         )}
 
