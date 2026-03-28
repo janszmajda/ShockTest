@@ -81,7 +81,7 @@ def find_shocks(
         p_then = float(df.loc[i - periods, "p"])
         delta = p_now - p_then
 
-        if abs(delta) >= theta:
+        if abs(delta) >= theta and 0.08 <= p_now <= 0.92 and 0.08 <= p_then <= 0.92:
             shocks.append(
                 {
                     "market_id": market_id,
