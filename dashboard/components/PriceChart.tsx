@@ -26,7 +26,7 @@ function formatTime(t: number): string {
 }
 
 function formatDate(t: number): string {
-  return new Date(t * 1000).toLocaleDateString([], {
+  return new Date(t * 1000).toLocaleString([], {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -41,7 +41,7 @@ export default function PriceChart({
 }: PriceChartProps) {
   if (series.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-gray-400">
+      <div className="flex h-[400px] items-center justify-center text-sm text-gray-400">
         No price data available
       </div>
     );
@@ -49,11 +49,11 @@ export default function PriceChart({
 
   const data = series.map((point) => ({
     t: point.t,
-    p: point.p,
+    probability: point.p * 100,
   }));
 
   return (
-    <div className="h-80 w-full">
+    <div className="h-[400px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={data}
@@ -67,15 +67,15 @@ export default function PriceChart({
             stroke="#9ca3af"
           />
           <YAxis
-            domain={[0, 1]}
-            tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+            domain={[0, 100]}
+            tickFormatter={(v: number) => `${v}%`}
             tick={{ fontSize: 12 }}
             stroke="#9ca3af"
           />
           <Tooltip
             labelFormatter={(label) => formatDate(label as number)}
             formatter={(value) => [
-              `${(Number(value) * 100).toFixed(1)}%`,
+              `${Number(value).toFixed(1)}%`,
               "Probability",
             ]}
           />
@@ -87,12 +87,13 @@ export default function PriceChart({
               fillOpacity={0.15}
               stroke="#ef4444"
               strokeOpacity={0.3}
+              label="Shock"
             />
           )}
           <Line
             type="monotone"
-            dataKey="p"
-            stroke="#3b82f6"
+            dataKey="probability"
+            stroke="#2563eb"
             strokeWidth={2}
             dot={false}
           />

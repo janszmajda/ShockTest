@@ -68,37 +68,43 @@ dashboard/
     └── dummyData.ts                # Fake data for building UI
 ```
 
-Done when: `npm run dev` works and shows the default Next.js page.
+✅ Done when: `npm run dev` works and shows the default Next.js page.
 
 ---
 
 ### Minute 30–60 — MongoDB Connection + API Routes
 
-**1. Create `.env.local`** (get the connection string from Person 1):
+**1. Create `.env.local`** (🔗 get the connection string from Person 1):
 ```
 MONGODB_URI=mongodb+srv://shocktest-admin:<password>@shocktest.xxxxx.mongodb.net/shocktest?retryWrites=true&w=majority
 ```
 
 **2. Create `lib/mongodb.ts`** — a singleton that reuses the DB connection:
 ```typescript
-import { MongoClient } from "mongodb";
-
-const globalWithMongo = global as typeof globalThis & {
-  _mongoClientPromise?: Promise<MongoClient>;
-};
-
-let clientPromise: Promise<MongoClient>;
+import { MongoClient } from 'mongodb';
 
 if (!process.env.MONGODB_URI) {
-  clientPromise = Promise.reject(new Error("Please add MONGODB_URI to .env.local"));
-  clientPromise.catch(() => {});
-} else if (process.env.NODE_ENV === "development") {
+  throw new Error('Please add MONGODB_URI to .env.local');
+}
+
+const uri = process.env.MONGODB_URI;
+const options = {};
+
+let client: MongoClient;
+let clientPromise: Promise<MongoClient>;
+
+if (process.env.NODE_ENV === 'development') {
+  let globalWithMongo = global as typeof globalThis & {
+    _mongoClientPromise?: Promise<MongoClient>;
+  };
   if (!globalWithMongo._mongoClientPromise) {
-    globalWithMongo._mongoClientPromise = new MongoClient(process.env.MONGODB_URI).connect();
+    client = new MongoClient(uri, options);
+    globalWithMongo._mongoClientPromise = client.connect();
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {
-  clientPromise = new MongoClient(process.env.MONGODB_URI).connect();
+  client = new MongoClient(uri, options);
+  clientPromise = client.connect();
 }
 
 export default clientPromise;
@@ -171,43 +177,92 @@ export interface AggregateStats {
 
 `app/api/shocks/route.ts` — returns all shocks sorted by size:
 ```typescript
-import { NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
-
-export const dynamic = "force-dynamic";
+import { NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
 
 export async function GET() {
-  const client = await clientPromise;
-  const shocks = await client.db("shocktest")
-    .collection("shock_events")
-    .find({}).sort({ abs_delta: -1 }).limit(100).toArray();
-  return NextResponse.json(shocks);
+  try {
+    const client = await clientPromise;
+    const db = client.db('shocktest');
+
+    const shocks = await db
+      .collection('shock_events')
+      .find({})
+      .sort({ delta: -1 })
+      .limit(100)
+      .toArray();
+
+    return NextResponse.json(shocks);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch shocks' }, { status: 500 });
+  }
 }
 ```
 
 `app/api/stats/route.ts` — returns the single aggregate stats document:
 ```typescript
-const stats = await client.db("shocktest")
-  .collection("shock_results")
-  .findOne({ _id: "aggregate_stats" });
-return NextResponse.json(stats || { total_shocks: 0, ... });
+import { NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
+
+export async function GET() {
+  try {
+    const client = await clientPromise;
+    const db = client.db('shocktest');
+
+    const stats = await db
+      .collection('shock_results')
+      .findOne({ _id: 'aggregate_stats' });
+
+    return NextResponse.json(stats || {
+      total_shocks: 0,
+      reversion_rate_1h: null,
+      reversion_rate_6h: null,
+      reversion_rate_24h: null,
+      mean_reversion_6h: null,
+      sample_size: 0
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
+  }
+}
 ```
 
 `app/api/markets/route.ts` — returns market list or single market with series:
 ```typescript
-const marketId = searchParams.get("id");
-if (marketId) {
-  // Single market with full price series
-  const market = await db.collection("market_series").findOne({ market_id: marketId });
-  return NextResponse.json(market);
+import { NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const marketId = searchParams.get('id');
+
+    const client = await clientPromise;
+    const db = client.db('shocktest');
+
+    if (marketId) {
+      // Return single market with full time series
+      const market = await db
+        .collection('market_series')
+        .findOne({ market_id: marketId });
+      return NextResponse.json(market);
+    }
+
+    // Return all markets (without full series for list view)
+    const markets = await db
+      .collection('market_series')
+      .find({})
+      .project({ series: 0 }) // exclude the big array for list queries
+      .toArray();
+
+    return NextResponse.json(markets);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch markets' }, { status: 500 });
+  }
 }
-// List without the big series array
-const markets = await db.collection("market_series")
-  .find({}).project({ series: 0 }).toArray();
-return NextResponse.json(markets);
 ```
 
-Done when: API routes exist (they'll return errors until MongoDB is connected — that's fine).
+✅ Done when: API routes exist (they'll return errors until MongoDB is connected — that's fine).
 
 ---
 
@@ -219,44 +274,232 @@ vercel login
 vercel --prod
 ```
 
-- Accept default settings when prompted
-- In Vercel dashboard: Settings → Environment Variables → add `MONGODB_URI`
+- Vercel will ask about settings — accept defaults
+- Add environment variable in Vercel dashboard: Settings → Environment Variables → add `MONGODB_URI`
 
-Done when: you have a live URL like `shocktest-dashboard.vercel.app` that loads.
+✅ Done when: you have a live URL like `shocktest-dashboard.vercel.app` that loads (even if blank).
 
 ---
 
 ### Minute 90–120 — Build with Dummy Data
 
-Create `lib/dummyData.ts` with 8+ fake shocks, aggregate stats, and a generated
-price series. Use this to build all components before real data is ready.
+Since Person 1 is still populating MongoDB, build components using hardcoded dummy data that matches the expected schema:
 
-Done when: `npm run dev` at `localhost:3000` shows dummy data in the UI.
+```typescript
+// lib/dummyData.ts
+export const DUMMY_SHOCKS = [
+  {
+    market_id: "will-trump-win-2028",
+    source: "polymarket",
+    question: "Will Trump win the 2028 presidential election?",
+    category: "politics",
+    t1: "2026-03-15T14:00:00Z",
+    t2: "2026-03-15T14:30:00Z",
+    p_before: 0.42,
+    p_after: 0.57,
+    delta: 0.15,
+    post_move_1h: -0.08,
+    post_move_6h: -0.11,
+    post_move_24h: -0.09,
+    reversion_1h: 0.08,
+    reversion_6h: 0.11,
+    reversion_24h: 0.09,
+  },
+  {
+    market_id: "btc-above-100k-june",
+    source: "polymarket",
+    question: "Will Bitcoin be above $100k on June 30?",
+    category: "crypto",
+    t1: "2026-03-20T09:00:00Z",
+    t2: "2026-03-20T09:45:00Z",
+    p_before: 0.65,
+    p_after: 0.52,
+    delta: -0.13,
+    post_move_1h: 0.04,
+    post_move_6h: 0.07,
+    post_move_24h: 0.10,
+    reversion_1h: 0.04,
+    reversion_6h: 0.07,
+    reversion_24h: 0.10,
+  },
+  // Add 5-8 more dummy shocks with varied categories, directions, magnitudes
+];
+
+export const DUMMY_STATS = {
+  total_shocks: 47,
+  reversion_rate_1h: 0.62,
+  reversion_rate_6h: 0.68,
+  reversion_rate_24h: 0.55,
+  mean_reversion_6h: 0.034,
+  std_reversion_6h: 0.021,
+  sample_size: 47,
+  by_category: {
+    politics: { count: 18, reversion_rate_6h: 0.72 },
+    crypto: { count: 15, reversion_rate_6h: 0.60 },
+    sports: { count: 8, reversion_rate_6h: 0.63 },
+    other: { count: 6, reversion_rate_6h: 0.67 },
+  }
+};
+
+export const DUMMY_PRICE_SERIES = [
+  // 100+ points simulating 2-min interval data around a shock
+  // timestamps as ISO strings, prices as floats 0-1
+  // Show: stable → sudden jump → partial reversion
+];
+```
+
+- Use this dummy data to build all UI components before real data is ready
+- When real data flows in during Hours 16–20, just remove the dummy imports and fetch from your API routes instead
+
+✅ Done when: `npm run dev` serves a page at `localhost:3000` that shows dummy data.
 
 ---
 
 ## HOUR 2–6 — Core Components (Table + Chart)
 
-### ShocksTable Component
-- Sortable by delta, category, source, reversion
-- Category dropdown filter
-- Color-coded delta values (green = up, red = down)
-- Each row links to `/shock/[id]` for detail view
+**Goal:** Build the core UI components using dummy data. All components should be swappable to real data later by just changing the data source from dummy imports to fetch calls.
 
-### PriceChart Component
-- Recharts `LineChart` showing probability (0-100%) over time
-- Red `ReferenceArea` highlighting the shock window
-- Tooltip showing exact probability at each point
-- Responsive via `ResponsiveContainer`
+### Hour 2–4 — ShocksTable Component
 
-Done when: table renders with dummy data and is sortable. Chart shows a line
-with the shock window highlighted in red.
+```typescript
+// components/ShocksTable.tsx
+'use client';
+
+import { useState, useMemo } from 'react';
+import Link from 'next/link';
+
+interface Shock {
+  market_id: string;
+  question: string;
+  source: string;
+  category: string | null;
+  t1: string;
+  t2: string;
+  p_before: number;
+  p_after: number;
+  delta: number;
+  abs_delta: number;
+  reversion_6h?: number;
+}
+
+interface ShocksTableProps {
+  shocks: Shock[];
+}
+
+export default function ShocksTable({ shocks }: ShocksTableProps) {
+  const [sortBy, setSortBy] = useState<'abs_delta' | 't2' | 'category'>('abs_delta');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const categories = useMemo(() => {
+    const cats = new Set(shocks.map(s => s.category).filter(Boolean));
+    return ['all', ...Array.from(cats)];
+  }, [shocks]);
+
+  const sorted = useMemo(() => {
+    let filtered = categoryFilter === 'all'
+      ? shocks
+      : shocks.filter(s => s.category === categoryFilter);
+
+    return filtered.sort((a, b) => {
+      const mul = sortDir === 'desc' ? -1 : 1;
+      if (sortBy === 'abs_delta') return mul * (a.abs_delta - b.abs_delta);
+      if (sortBy === 't2') return mul * (new Date(a.t2).getTime() - new Date(b.t2).getTime());
+      return 0;
+    });
+  }, [shocks, sortBy, sortDir, categoryFilter]);
+
+  // Build this out with Claude Code — sortable headers, category filter dropdown,
+  // color-coded delta values (green for positive, red for negative),
+  // clickable rows that link to /shock/[market_id]
+
+  return (
+    <div>
+      {/* Category filter buttons */}
+      {/* Table with sortable headers */}
+      {/* Each row links to /shock/[market_id] for detail view */}
+    </div>
+  );
+}
+```
+
+### Hour 4–6 — PriceChart Component
+
+```typescript
+// components/PriceChart.tsx
+'use client';
+
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, ResponsiveContainer } from 'recharts';
+
+interface PricePoint {
+  t: string;  // ISO timestamp
+  p: number;  // probability 0-1
+}
+
+interface PriceChartProps {
+  series: PricePoint[];
+  shockT1?: string;  // shock window start
+  shockT2?: string;  // shock window end
+}
+
+export default function PriceChart({ series, shockT1, shockT2 }: PriceChartProps) {
+  const data = series.map(point => ({
+    time: new Date(point.t).toLocaleString(),
+    timestamp: new Date(point.t).getTime(),
+    probability: point.p * 100,  // display as percentage
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="time" tick={{ fontSize: 12 }} />
+        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+        <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, 'Probability']} />
+        <Line type="monotone" dataKey="probability" stroke="#2563eb" dot={false} strokeWidth={2} />
+
+        {/* Highlight shock window */}
+        {shockT1 && shockT2 && (
+          <ReferenceArea
+            x1={new Date(shockT1).toLocaleString()}
+            x2={new Date(shockT2).toLocaleString()}
+            fill="#ef4444"
+            fillOpacity={0.15}
+            label="Shock"
+          />
+        )}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+- Build both components, test with dummy data at `localhost:3000`
+- Have Claude Code polish the styling — use Tailwind for layout, spacing, colors
+
+✅ Done when: shocks table renders with dummy data and is sortable; price chart renders a line with highlighted shock window.
 
 ---
 
 ## HOUR 6–10 — Detail Page + Histogram + Stats Cards
 
-### Shock Detail Page (`/shock/[id]`)
+**Goal:** Build the per-shock detail page and start on the histogram component.
+
+### Per-Shock Detail Page
+
+```typescript
+// app/shock/[id]/page.tsx
+// This page shows:
+// 1. Market question as title
+// 2. Shock details (before/after price, delta, time window)
+// 3. Full probability chart with shock window highlighted
+// 4. Post-shock stats (1h/6h/24h reversion) if available
+
+// Fetch market series from /api/markets?id={market_id}
+// Fetch shock details from /api/shocks (filter by market_id)
+// Render PriceChart component with the series data + shock window
+```
+
 Layout:
 ```
 ← Back to dashboard
@@ -274,30 +517,79 @@ Post-Shock Outcomes:
 ```
 
 ### Histogram Component
-- Bar chart showing distribution of 6h reversion values
-- Green bars = reversion (price moved back), Red bars = continuation
-- X-axis: reversion magnitude in bins, Y-axis: count
 
-### StatsCards Component
-4 cards in a row:
-1. **Total Shocks** — big number
-2. **6h Reversion Rate** — percentage (the headline metric)
-3. **Mean Reversion (6h)** — percentage points
-4. **Markets Analyzed** — count
+```typescript
+// components/Histogram.tsx
+// Shows distribution of post-shock probability moves
+// X-axis: reversion magnitude (negative = continuation, positive = reversion)
+// Y-axis: count of shocks
+// Use Recharts BarChart with bins
+
+// Key design choices:
+// - Color bars: green for reversion (positive), red for continuation (negative)
+// - Add vertical reference line at x=0
+// - Show mean reversion as a dashed vertical line
+// - Label the axes clearly for demo
+```
+
+### Stats Cards Component
+
+```typescript
+// components/StatsCards.tsx
+// 3-4 summary cards at top of dashboard:
+// 1. "Total Shocks Detected" — large number
+// 2. "6h Reversion Rate" — percentage with color coding (>50% = green)
+// 3. "Mean Reversion Magnitude" — percentage points
+// 4. "Markets Analyzed" — count
+//
+// Use a clean card grid with Tailwind
+```
 
 ### FindingsBlock Component
+
 1-2 sentence summary paragraph with real numbers plugged in, e.g.:
 > "In a sample of 47 shocks across 83 prediction markets, 68% showed mean
-> reversion within 6 hours, with an average magnitude of 3.4 percentage points."
+> reversion within 6 hours, with an average magnitude of 3.4 percentage points.
+> Political markets reverted at a higher rate (72%) than the overall average."
 
-Done when: detail page, histogram, stats cards, and findings block all render
-with dummy data. Full page layout works.
+✅ Done when: detail page renders with dummy data, histogram shows dummy distribution, stats cards display.
 
 ---
 
 ## HOUR 10–16 — Layout + Category Breakdown + Start Wiring Real Data
 
+**Goal:** Build the aggregate histogram and stats cards. Set up layout/navigation. Start connecting to real API routes as data becomes available.
+
+### Hour 10–12 — Histogram + Stats Cards
+- Build the histogram component showing distribution of post-shock moves
+- Build stats cards showing headline numbers
+- Wire both to dummy data initially
+
+### Hour 12–14 — Layout and Navigation
+
+Main page (`/`) should show:
+```
+Header: "ShockTest — Do Prediction Markets Overreact?"
+Subtitle: "Analyzing mean reversion in Polymarket probability shocks"
+├── Stats Cards row (4 cards)
+├── Findings paragraph (1-2 sentences with real numbers, filled in later)
+├── Shocks Table (sortable, filterable)
+├── Aggregate Histogram
+├── CategoryBreakdown (table)
+└── Footer: "Powered by Polymarket · Data stored in MongoDB Atlas · Categories by Google Gemini"
+```
+
+Detail page (`/shock/[id]`) should show:
+```
+├── Back link to main page
+├── Market question as title
+├── Shock details (delta, time window, category)
+├── Full price chart with shock highlight
+└── Post-shock outcomes table (1h, 6h, 24h)
+```
+
 ### CategoryBreakdown Component
+
 Table showing reversion rate per market category:
 ```
 Category    Shocks    6h Reversion Rate    Mean Reversion
@@ -307,65 +599,58 @@ sports      8         63%                  3.2pp
 other       6         67%                  3.5pp
 ```
 
-### Main Page Layout
-```
-Header
-├── StatsCards (4 cards in a row)
-├── FindingsBlock (summary paragraph)
-├── ShocksTable (sortable, filterable)
-├── Histogram (bar chart)
-├── CategoryBreakdown (table)
-Footer ("Powered by Polymarket · MongoDB Atlas · Google Gemini")
-```
+### Hour 14–16 — Start Wiring Real Data
 
-### Start Checking for Real Data
-Test if Person 2's data is flowing:
+Check if Person 2's data is in MongoDB by hitting your API routes:
 ```bash
-curl http://localhost:3000/api/shocks
-curl http://localhost:3000/api/stats
+curl http://localhost:3000/api/shocks    # should return shock events
+curl http://localhost:3000/api/stats     # should return aggregate stats
 ```
 
-If real data appears, start replacing dummy imports with `fetch()` calls.
-If not, keep using dummy data — you'll swap in Hours 16–20.
+- If real data is available, start replacing dummy data imports with `fetch('/api/...')` calls
+- If not yet available, keep using dummy data — you'll swap in Hours 16–20
 
-Done when: full layout works, navigation between main page and detail pages works.
+✅ Done when: full page layout works with either dummy or real data, navigation between main page and detail pages works.
 
 ---
 
 ## HOUR 16–20 — Wire Real Data + Deploy
 
+**Goal:** Wire all real data into the dashboard. Everything should show real numbers, not dummy data.
+
 ### Hour 16–18 — Replace Dummy Data with API Calls
 
-For each page/component using dummy data, switch to fetching from API:
-```typescript
-"use client";
-import { useState, useEffect } from "react";
+Every component that uses `DUMMY_SHOCKS`, `DUMMY_STATS`, etc. should now fetch from your API routes:
 
+```typescript
+// Pattern for each component:
 const [data, setData] = useState(null);
 const [loading, setLoading] = useState(true);
 
 useEffect(() => {
-  fetch("/api/shocks")
+  fetch('/api/shocks')
     .then(res => res.json())
     .then(data => { setData(data); setLoading(false); })
-    .catch(() => setLoading(false));
+    .catch(err => { console.error(err); setLoading(false); });
 }, []);
 ```
 
 ### Hour 18–20 — Polish and Deploy
 
-- Add the findings paragraph text from Person 2
-- Add "Powered by Polymarket" attribution in footer
-- Deploy:
+- Add the findings paragraph from Person 2 to the top of the dashboard
+- Add "Powered by Polymarket" logo/text in footer
+- Add data source badges (Polymarket, MongoDB, Gemini)
+- Deploy to Vercel:
 ```bash
 vercel --prod
 ```
 
-- Point the GoDaddy domain to Vercel:
-  - Vercel: Settings → Domains → add `shocktest.xyz`
-  - GoDaddy: DNS → CNAME record → `cname.vercel-dns.com`
+- Point GoDaddy domain to Vercel:
+  - In Vercel: Settings → Domains → add `shocktest.xyz`
+  - In GoDaddy: DNS → add CNAME record pointing to `cname.vercel-dns.com`
+  - Or use Vercel's nameservers (Vercel will show instructions)
 
-Done when: `shocktest.xyz` loads the dashboard with **real data** from MongoDB.
+✅ Done when: `shocktest.xyz` loads the dashboard with **real data** from MongoDB.
 
 ---
 
@@ -373,13 +658,13 @@ Done when: `shocktest.xyz` loads the dashboard with **real data** from MongoDB.
 
 ### Hour 20–22 — UI/UX Polish (aim for Best UI/UX prize)
 
-Focus areas:
-- **Color palette** — pick something distinctive via Tailwind config, not default blue
-- **Chart readability** — proper font sizes, contrast, axis labels
-- **Visual hierarchy** — headline finding should be the most prominent element
-- **Animations** — fade-in on page load, smooth transitions
-- **Responsive** — test at mobile width, make sure tables scroll
-- **Edge cases** — loading states, error states, empty states
+Use Claude Code to:
+- Apply a consistent color palette via Tailwind config (not default blue — pick something distinctive)
+- Ensure chart labels are readable (font size, contrast, axis labels)
+- Add smooth transitions/animations on page load (fade-in for cards, etc.)
+- Make layout responsive (test at mobile width)
+- Add visual hierarchy — the headline finding should be the most prominent element
+- Clean up any rough edges (loading states, error states, empty states)
 
 ### Hour 22–23 — Film Most Viral Post Reel
 
@@ -394,11 +679,10 @@ Post to Instagram as a reel, tag **@yhack.yale**.
 ### Hour 23–24 — Final Deploy + Devpost Submission
 
 ```bash
+# Final production deploy
 vercel --prod
-```
 
-Verify everything:
-```bash
+# Verify everything works
 curl https://shocktest.xyz
 curl https://shocktest.xyz/api/shocks
 curl https://shocktest.xyz/api/stats
@@ -407,9 +691,11 @@ curl https://shocktest.xyz/api/stats
 Submit on Devpost (`yhack-2026.devpost.com`):
 - Project name: **ShockTest**
 - Tagline: "Do Prediction Markets Overreact?"
-- Tracks: Prediction Markets, Most Creative Hack, Best UI/UX
-- Add demo URL, GitHub link, demo video
-- Paste description from Person 2
+- Select tracks: Prediction Markets, Most Creative Hack, Best UI/UX
+- Add demo URL: `shocktest.xyz`
+- Add GitHub repo link
+- Add demo video (can reuse the reel or record a longer walkthrough)
+- Paste the description Person 2 wrote
 
 ---
 
