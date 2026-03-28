@@ -10,6 +10,7 @@ Keep it running in a terminal during the demo.
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -33,63 +34,69 @@ CLOB_BASE = "https://clob.polymarket.com"
 THETA = 0.08  # shock threshold
 POLL_INTERVAL = 120  # seconds between checks
 LOOKBACK_POINTS = 30  # recent price points to scan for shocks
+MAX_WORKERS = 10  # concurrent API requests
+
+
+def _fetch_one_market(token_id: str) -> list[dict]:
+    """Fetch recent price history for a single token. Returns list of {t, p}."""
+    try:
+        resp = requests.get(
+            f"{CLOB_BASE}/prices-history",
+            params={"market": token_id, "interval": "1h", "fidelity": 1},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        history = data.get("history", [])
+        if not history:
+            return []
+        points = []
+        for pt in history[-LOOKBACK_POINTS:]:
+            t = pt.get("t")
+            p = pt.get("p")
+            if t is not None and p is not None:
+                points.append({"t": float(t), "p": float(p)})
+        return points
+    except Exception:
+        return []
 
 
 def fetch_latest_prices() -> int:
-    """Fetch latest prices for active Polymarket markets via CLOB API.
+    """Fetch latest prices for high-value Polymarket markets concurrently.
 
-    Only polls the top 100 markets by volume to keep cycle time under 2 minutes.
+    Polls markets with volume > 10000 OR that have existing shocks.
+    Uses ThreadPoolExecutor for concurrent requests.
     """
-    markets = list(
-        db["market_series"]
-        .find(
+    # Get market IDs that already have shocks
+    shock_market_ids = set(db["shock_events"].distinct("market_id"))
+
+    # Get high-volume markets + markets with shocks
+    all_poly = list(
+        db["market_series"].find(
             {"source": "polymarket"},
-            {"market_id": 1, "token_id": 1, "question": 1, "category": 1, "volume": 1},
+            {"market_id": 1, "token_id": 1, "volume": 1},
         )
-        .sort("volume", -1)
-        .limit(100)
     )
+    markets_to_poll = [
+        m
+        for m in all_poly
+        if m.get("token_id") and (float(m.get("volume", 0)) > 10000 or m["market_id"] in shock_market_ids)
+    ]
 
     updated = 0
-    for market in markets:
-        try:
-            token_id = market.get("token_id")
-            if not token_id:
-                continue
-
-            resp = requests.get(
-                f"{CLOB_BASE}/prices-history",
-                params={"market": token_id, "interval": "1h", "fidelity": 1},
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                continue
-
-            data = resp.json()
-            history = data.get("history", [])
-            if not history:
-                continue
-
-            # Take last LOOKBACK_POINTS points
-            recent_points = history[-LOOKBACK_POINTS:]
-            new_points = []
-            for point in recent_points:
-                t = point.get("t")
-                p = point.get("p")
-                if t is not None and p is not None:
-                    new_points.append({"t": float(t), "p": float(p)})
-
+    # Concurrent fetch
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_market = {executor.submit(_fetch_one_market, m["token_id"]): m for m in markets_to_poll}
+        for future in as_completed(future_to_market):
+            market = future_to_market[future]
+            new_points = future.result()
             if new_points:
-                # Add new points to the series (MongoDB deduplicates via $addToSet)
                 db["market_series"].update_one(
                     {"_id": market["_id"]},
                     {"$addToSet": {"series": {"$each": new_points}}},
                 )
                 updated += 1
-
-            time.sleep(0.1)  # rate limit
-        except Exception:
-            continue
 
     return updated
 
@@ -221,12 +228,13 @@ def update_hours_ago() -> None:
 def main() -> None:
     """Run the live monitor loop."""
     print("ShockTest Live Monitor")
-    print(f"Polling every {POLL_INTERVAL}s | Threshold: {THETA}")
+    print(f"Polling every {POLL_INTERVAL}s | Threshold: {THETA} | Workers: {MAX_WORKERS}")
     print(f"Backtest context: win_rate_6h={backtest.get('win_rate_6h', 'N/A')}")
     print("Ctrl+C to stop\n")
 
     while True:
         try:
+            cycle_start = time.time()
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] Fetching prices...", end=" ", flush=True)
             n = fetch_latest_prices()
@@ -235,12 +243,15 @@ def main() -> None:
             print("Scanning...", end=" ", flush=True)
             new = detect_live_shocks()
             if new:
-                print(f"NEW SHOCKS: {len(new)}!")
+                print(f"NEW SHOCKS: {len(new)}!", end=" ", flush=True)
             else:
-                print("no new shocks.")
+                print("no new shocks.", end=" ", flush=True)
 
             update_hours_ago()
-            time.sleep(POLL_INTERVAL)
+            elapsed = time.time() - cycle_start
+            print(f"[{elapsed:.1f}s]")
+
+            time.sleep(max(0, POLL_INTERVAL - elapsed))
         except KeyboardInterrupt:
             print("\nStopping monitor.")
             break
