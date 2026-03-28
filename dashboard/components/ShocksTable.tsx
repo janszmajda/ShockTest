@@ -15,11 +15,7 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // Find the most recent shock timestamp to determine "recent" relative to the dataset
-  const mostRecentT2 = useMemo(() => {
-    if (shocks.length === 0) return 0;
-    return Math.max(...shocks.map((s) => new Date(s.t2).getTime()));
-  }, [shocks]);
+  // Fields like is_live_alert, is_recent are now on the Shock type
 
   const categories = useMemo(() => {
     const cats = new Set(shocks.map((s) => s.category).filter(Boolean));
@@ -33,6 +29,11 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
         : shocks.filter((s) => s.category === categoryFilter);
 
     return [...filtered].sort((a, b) => {
+      // Live alerts always sort to the top
+      const aLive = a.is_live_alert === true ? 1 : 0;
+      const bLive = b.is_live_alert === true ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+
       const mul = sortDir === "desc" ? -1 : 1;
       if (sortBy === "abs_delta") return mul * (a.abs_delta - b.abs_delta);
       if (sortBy === "t2")
@@ -152,22 +153,20 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
                   {formatDelta(shock.delta)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {(() => {
-                    const shockTime = new Date(shock.t2).getTime();
-                    const hoursSinceMostRecent =
-                      (mostRecentT2 - shockTime) / 3600000;
-                    if (hoursSinceMostRecent < 48) {
-                      return (
-                        <span className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 animate-pulse">
-                            RECENT
-                          </span>
-                          {new Date(shock.t2).toLocaleDateString()}
+                  <span className="flex items-center gap-1.5">
+                    {shock.is_live_alert === true && (
+                      <span className="inline-flex animate-pulse items-center rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                        LIVE
+                      </span>
+                    )}
+                    {shock.is_live_alert !== true &&
+                      shock.is_recent === true && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          RECENT
                         </span>
-                      );
-                    }
-                    return new Date(shock.t2).toLocaleDateString();
-                  })()}
+                      )}
+                    {new Date(shock.t2).toLocaleDateString()}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
                   {formatReversion(shock.reversion_6h)}
