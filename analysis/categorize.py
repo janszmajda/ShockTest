@@ -26,8 +26,8 @@ from analysis.helpers import get_db
 load_dotenv()
 
 VALID_CATEGORIES = {"politics", "sports", "crypto", "entertainment", "science", "other"}
-REQUESTS_PER_MINUTE = 10
-SLEEP_BETWEEN_REQUESTS = 60 / REQUESTS_PER_MINUTE  # 6 seconds
+REQUESTS_PER_MINUTE = 4  # free tier is 5 RPM — stay under with buffer
+SLEEP_BETWEEN_REQUESTS = 60 / REQUESTS_PER_MINUTE  # 15 seconds
 
 
 def get_client() -> genai.Client:
@@ -77,8 +77,13 @@ def categorize_all_markets(force: bool = False) -> None:
         force: If True, re-categorize markets that already have a category.
     """
     db = get_db()
-    query = {} if force else {"category": None}
-    markets = list(db["market_series"].find(query, {"market_id": 1, "question": 1}))
+
+    # Only categorize markets that have shock events — saves ~900 API calls
+    shock_market_ids = set(db["shock_events"].distinct("market_id"))
+    base_query = {"market_id": {"$in": list(shock_market_ids)}}
+    if not force:
+        base_query["category"] = None  # type: ignore[assignment]
+    markets = list(db["market_series"].find(base_query, {"market_id": 1, "question": 1}))
 
     if not markets:
         print("All markets already categorized. Use force=True to re-run.")
