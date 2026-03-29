@@ -22,22 +22,22 @@
 }
 
 [data-theme="light"] {
-  --st-bg: #f5f5f7;
+  --st-bg: #ffffff;
   --st-s1: #ffffff;
-  --st-s2: #f0f0f3;
-  --st-s3: #e8e8ec;
-  --st-border: rgba(0, 0, 0, 0.08);
-  --st-border-h: rgba(0, 0, 0, 0.15);
-  --st-txt: #1a1a2e;
-  --st-txt2: #6b6b7b;
-  --st-muted: #9b9baa;
-  --st-yes: #16a06a;
-  --st-yes-dim: rgba(22, 160, 106, 0.1);
-  --st-no: #d44040;
-  --st-no-dim: rgba(212, 64, 64, 0.1);
-  --st-accent: #4070dd;
-  --st-accent-dim: rgba(64, 112, 221, 0.1);
-  --st-grid: rgba(0, 0, 0, 0.06);
+  --st-s2: #fafafa;
+  --st-s3: #f5f5f5;
+  --st-border: #e5e5e5;
+  --st-border-h: #d0d0d0;
+  --st-txt: #000000;
+  --st-txt2: #555555;
+  --st-muted: #999999;
+  --st-yes: #16a34a;
+  --st-yes-dim: rgba(22, 163, 74, 0.08);
+  --st-no: #E63128;
+  --st-no-dim: rgba(230, 49, 40, 0.08);
+  --st-accent: #E63128;
+  --st-accent-dim: rgba(230, 49, 40, 0.06);
+  --st-grid: #f0f0f0;
 }
 
 /* ── Body base styles ── */
