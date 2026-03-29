@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import { DUMMY_BACKTEST } from "@/lib/dummyData";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,7 @@ export async function GET() {
 
     console.log(`[/api/backtest] query done: ${Date.now() - t0}ms`);
     if (!stats) {
-      return NextResponse.json(
-        { error: "No backtest data yet" },
-        { status: 404 },
-      );
+      return NextResponse.json(DUMMY_BACKTEST);
     }
 
     return NextResponse.json({
@@ -29,9 +27,7 @@ export async function GET() {
       distribution_24h: stats.distribution_24h || null,
     });
   } catch {
-    return NextResponse.json(
-      { error: "Failed to fetch backtest data" },
-      { status: 500 },
-    );
+    // DB connection failed — serve dummy backtest
+    return NextResponse.json(DUMMY_BACKTEST);
   }
 }

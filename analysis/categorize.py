@@ -1,10 +1,8 @@
 """
-Keyword-based market categorization for ShockTest.
+K2-powered market categorization for ShockTest.
 
-Classifies each market title into: politics, sports, crypto,
-entertainment, science, or other.
-
-No API keys required — runs instantly.
+Classifies each market title into one of 12 categories using
+the MBZUAI K2-Think-v2 model, with keyword matching as fallback.
 
 Usage:
     python analysis/categorize.py
@@ -12,12 +10,21 @@ Usage:
 """
 
 import argparse
+import json
+import os
 import sys
+import time
 from pathlib import Path
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.helpers import get_db
+
+K2_API_URL = "https://api.k2think.ai/v1/chat/completions"
+K2_MODEL = "MBZUAI-IFM/K2-Think-v2"
+K2_API_KEY = os.environ.get("K2_API_KEY", "")
 
 VALID_CATEGORIES = {
     "politics", "elections", "geopolitics", "sports", "esports",
@@ -643,28 +650,96 @@ _KEYWORDS: dict[str, list[str]] = {
 }
 
 
+def _categorize_keyword(question: str) -> str:
+    """Fallback: classify by keyword matching."""
+    text = " " + question.lower() + " "
+    for category, keywords in _KEYWORDS.items():
+        for kw in keywords:
+            if kw in text:
+                return category
+    return "other"
+
+
+def _categorize_k2_batch(questions: list[str]) -> list[str]:
+    """
+    Classify a batch of market questions using K2-Think-v2.
+
+    Sends all questions in one prompt and parses the JSON array response.
+    Falls back to keyword matching for any that fail.
+    """
+    categories_str = ", ".join(sorted(VALID_CATEGORIES))
+    prompt = (
+        "You are a prediction market categorizer. For each market question below, "
+        f"respond with ONLY a JSON array of categories. Valid categories: {categories_str}.\n\n"
+        "Rules:\n"
+        "- Return exactly one category per question\n"
+        "- Output ONLY the JSON array, no other text\n"
+        "- Example: [\"politics\", \"sports\", \"crypto\"]\n\n"
+        "Questions:\n"
+    )
+    for i, q in enumerate(questions):
+        prompt += f"{i + 1}. {q}\n"
+
+    try:
+        resp = requests.post(
+            K2_API_URL,
+            headers={
+                "Authorization": f"Bearer {K2_API_KEY}",
+                "Content-Type": "application/json",
+                "accept": "application/json",
+            },
+            json={
+                "model": K2_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+
+        # Extract JSON array from response (may have thinking tags or extra text)
+        # Find the first [ and last ]
+        start = content.find("[")
+        end = content.rfind("]")
+        if start == -1 or end == -1:
+            raise ValueError(f"No JSON array found in response: {content[:200]}")
+        categories = json.loads(content[start:end + 1])
+
+        # Validate and map results
+        results = []
+        for i, cat in enumerate(categories):
+            cat_lower = cat.strip().lower()
+            if cat_lower in VALID_CATEGORIES:
+                results.append(cat_lower)
+            else:
+                results.append(_categorize_keyword(questions[i]))
+
+        # If K2 returned fewer results than questions, fill with keyword fallback
+        while len(results) < len(questions):
+            results.append(_categorize_keyword(questions[len(results)]))
+
+        return results
+
+    except Exception as e:
+        print(f"  K2 API error: {e} — falling back to keyword matching for batch")
+        return [_categorize_keyword(q) for q in questions]
+
+
 def categorize_market(question: str) -> str:
     """
-    Classify a prediction market question by keyword matching.
+    Classify a prediction market question using K2-Think-v2 model.
 
-    Checks each category's keyword list in priority order:
-    crypto → sports → politics → entertainment → science → other.
+    Falls back to keyword matching if the API call fails.
 
     Args:
         question: The market title/question string.
 
     Returns:
-        One of: politics, sports, crypto, entertainment, science, other.
+        One of the VALID_CATEGORIES.
     """
-    # Pad with spaces so boundary-padded tokens (e.g. " eth ") match at start/end
-    text = " " + question.lower() + " "
-
-    for category, keywords in _KEYWORDS.items():
-        for kw in keywords:
-            if kw in text:
-                return category
-
-    return "other"
+    results = _categorize_k2_batch([question])
+    return results[0]
 
 
 def categorize_all_markets(force: bool = False) -> None:
@@ -691,14 +766,21 @@ def categorize_all_markets(force: bool = False) -> None:
         print("All markets already categorized. Use --force to re-run.")
         return
 
-    print(f"Categorizing {len(markets)} markets...")
-
-    for i, market in enumerate(markets):
-        question = market["question"]
-        # Prefer API-provided category (from Polymarket tags), fall back to keywords
+    # Split into markets with API categories and those needing K2
+    needs_k2 = []
+    has_api_cat = []
+    for market in markets:
         api_cat = market.get("category")
-        category = api_cat if (api_cat and api_cat in VALID_CATEGORIES) else categorize_market(question)
+        if api_cat and api_cat in VALID_CATEGORIES and not force:
+            has_api_cat.append((market, api_cat))
+        else:
+            needs_k2.append(market)
 
+    total = len(markets)
+    done = 0
+
+    # Apply API-provided categories first
+    for market, category in has_api_cat:
         db["market_series"].update_one(
             {"_id": market["_id"]},
             {"$set": {"category": category}},
@@ -707,8 +789,33 @@ def categorize_all_markets(force: bool = False) -> None:
             {"market_id": market["market_id"]},
             {"$set": {"category": category}},
         )
+        done += 1
+        print(f"  [{done}/{total}] {category:15s} | {market['question'][:60]}  (API tag)")
 
-        print(f"  [{i + 1}/{len(markets)}] {category:15s} | {question[:60]}")
+    # Batch K2 calls (10 at a time to stay within token limits)
+    BATCH_SIZE = 10
+    print(f"\nCategorizing {len(needs_k2)} markets via K2-Think-v2...")
+
+    for batch_start in range(0, len(needs_k2), BATCH_SIZE):
+        batch = needs_k2[batch_start:batch_start + BATCH_SIZE]
+        questions = [m["question"] for m in batch]
+        categories = _categorize_k2_batch(questions)
+
+        for market, category in zip(batch, categories):
+            db["market_series"].update_one(
+                {"_id": market["_id"]},
+                {"$set": {"category": category}},
+            )
+            db["shock_events"].update_many(
+                {"market_id": market["market_id"]},
+                {"$set": {"category": category}},
+            )
+            done += 1
+            print(f"  [{done}/{total}] {category:15s} | {market['question'][:60]}")
+
+        # Small delay between batches to be polite to the API
+        if batch_start + BATCH_SIZE < len(needs_k2):
+            time.sleep(1)
 
     # Print category summary
     print("\nCategory breakdown:")
