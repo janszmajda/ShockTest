@@ -24,13 +24,14 @@ import {
   SimilarStatsResponse,
   AggregateStats,
 } from "@/lib/types";
+import { cachedFetch } from "@/lib/fetchCache";
 
 interface ShockDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-function formatPp(val: number | null): string {
-  if (val === null) return "—";
+function formatPp(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return "—";
   const sign = val > 0 ? "+" : "";
   return `${sign}${(val * 100).toFixed(1)}pp`;
 }
@@ -59,48 +60,43 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   useEffect(() => {
     async function load() {
       try {
-        // Fetch shock list + stats in parallel
-        const [shocksRes, statsRes] = await Promise.all([
-          fetch("/api/shocks"),
-          fetch("/api/stats"),
+        // Fetch shock list + stats in parallel (cached across navigations)
+        const [shocks, statsData] = await Promise.all([
+          cachedFetch<Shock[]>("/api/shocks").catch(() => null),
+          cachedFetch<AggregateStats>("/api/stats").catch(() => null),
         ]);
 
         let foundShock: Shock | undefined;
 
-        if (shocksRes.ok) {
-          const shocks: Shock[] = await shocksRes.json();
+        if (shocks && shocks.length > 0) {
           foundShock = shocks.find((s) => s._id === id);
-          if (foundShock) {
-            setShock(foundShock);
-            // Fetch market series in background
-            fetch(`/api/markets?id=${foundShock.market_id}`)
-              .then((res) => (res.ok ? res.json() : null))
-              .then((market) => {
-                if (market?.series?.length > 0) setSeries(market.series);
-              })
-              .catch(() => {});
-          }
+          if (foundShock) setShock(foundShock);
         }
 
-        if (statsRes.ok) {
-          const data: AggregateStats = await statsRes.json();
-          if (data.total_shocks > 0) setStats(data);
-        }
+        if (statsData && statsData.total_shocks > 0) setStats(statsData);
 
-        // Now fetch similar stats using the shock's properties
+        // Fire similar-stats + market series in parallel (no waterfall)
         const s = foundShock ?? shock;
-        const params = new URLSearchParams({
+        const similarParams = new URLSearchParams({
           abs_delta: String(s.abs_delta),
           direction: s.delta > 0 ? "up" : "down",
           exclude_id: s._id,
         });
-        if (s.category) params.set("category", s.category);
+        if (s.category) similarParams.set("category", s.category);
 
-        const similarRes = await fetch(`/api/similar-stats?${params}`);
-        if (similarRes.ok) {
-          const data: SimilarStatsResponse = await similarRes.json();
-          if (data.backtest) setSimilarStats(data);
-        }
+        const [similarData, market] = await Promise.all([
+          cachedFetch<SimilarStatsResponse>(
+            `/api/similar-stats?${similarParams}`,
+          ).catch(() => null),
+          foundShock
+            ? fetch(`/api/markets?id=${foundShock.market_id}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null)
+            : null,
+        ]);
+
+        if (similarData?.backtest) setSimilarStats(similarData);
+        if (market?.series?.length > 0) setSeries(market.series);
       } catch {
         // keep dummy data
       } finally {
@@ -426,6 +422,11 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               </tbody>
             </table>
           </div>
+          {shock.post_move_1h == null && shock.post_move_6h == null && shock.post_move_24h == null && (
+            <p className="mt-2 text-xs text-text-muted">
+              This is a live shock — post-shock data will populate as time passes.
+            </p>
+          )}
         </div>
 
         {/* 8. Caveats */}

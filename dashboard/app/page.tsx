@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import LiveAlertBanner from "@/components/LiveAlertBanner";
 import StatsCards from "@/components/StatsCards";
@@ -8,10 +8,12 @@ import ShocksTable from "@/components/ShocksTable";
 import Histogram from "@/components/Histogram";
 import CategoryBreakdown from "@/components/CategoryBreakdown";
 import { DashboardFilters } from "@/components/DashboardControls";
+import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
 import { Shock, AggregateStats, PricePoint } from "@/lib/types";
+import { cachedFetch } from "@/lib/fetchCache";
 
 export default function Home() {
   const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
@@ -20,59 +22,62 @@ export default function Home() {
   const [usingDummy, setUsingDummy] = useState(true);
   const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
   const [closeTimeMap, setCloseTimeMap] = useState<Record<string, number | null>>({});
+  const [imageMap, setImageMap] = useState<Record<string, string | null>>({});
   const [filters, setFilters] = useState<DashboardFilters>({
     theta: 0.08,
     horizon: "6h",
     category: "all",
   });
 
+  // Track which IDs we've already fetched to avoid re-fetching
+  const fetchedIdsRef = useRef<Set<string>>(new Set());
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingIdsRef = useRef<string[]>([]);
+
+  const handleVisibleIds = useCallback((ids: string[]) => {
+    const missing = ids.filter((id) => !fetchedIdsRef.current.has(id));
+    if (missing.length === 0) return;
+    // Accumulate missing IDs and debounce the fetch
+    pendingIdsRef.current = Array.from(new Set([...pendingIdsRef.current, ...missing]));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const toFetch = pendingIdsRef.current.filter((id) => !fetchedIdsRef.current.has(id));
+      pendingIdsRef.current = [];
+      if (toFetch.length === 0) return;
+      for (const id of toFetch) fetchedIdsRef.current.add(id);
+      fetch(`/api/markets/mini-series?ids=${toFetch.join(",")}`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((result) => {
+          const ms: Record<string, PricePoint[]> = {};
+          const mc: Record<string, number | null> = {};
+          const mi: Record<string, string | null> = {};
+          for (const [k, v] of Object.entries(result)) {
+            const entry = v as { series: PricePoint[]; close_time: number | null; image_url: string | null };
+            ms[k] = entry.series;
+            mc[k] = entry.close_time;
+            mi[k] = entry.image_url;
+          }
+          setSeriesMap((prev) => ({ ...prev, ...ms }));
+          setCloseTimeMap((prev) => ({ ...prev, ...mc }));
+          setImageMap((prev) => ({ ...prev, ...mi }));
+        })
+        .catch(() => {});
+    }, 300);
+  }, []);
+
   const fetchData = useCallback(() => {
     Promise.all([
-      fetch("/api/shocks")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: Shock[]) => {
+      cachedFetch<Shock[]>("/api/shocks")
+        .then((data) => {
           if (data.length > 0) {
             setAllShocks(data);
-            // Background fetch mini series for sparklines (batched)
-            const marketIds = Array.from(new Set(data.map((s) => s.market_id)));
-            const batchSize = 40;
-            const batches: string[][] = [];
-            for (let i = 0; i < marketIds.length; i += batchSize) {
-              batches.push(marketIds.slice(i, i + batchSize));
-            }
-            Promise.all(
-              batches.map((batch) =>
-                fetch(`/api/markets/mini-series?ids=${batch.join(",")}`)
-                  .then((r) => (r.ok ? r.json() : {}))
-                  .catch(() => ({})),
-              ),
-            ).then((results) => {
-              const mergedSeries: Record<string, PricePoint[]> = {};
-              const mergedClose: Record<string, number | null> = {};
-              for (const r of results) {
-                for (const [k, v] of Object.entries(r)) {
-                  const entry = v as { series: PricePoint[]; close_time: number | null };
-                  mergedSeries[k] = entry.series;
-                  mergedClose[k] = entry.close_time;
-                }
-              }
-              setSeriesMap(mergedSeries);
-              setCloseTimeMap(mergedClose);
-            });
             return true;
           }
           return false;
         })
         .catch(() => false),
-      fetch("/api/stats")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: AggregateStats) => {
+      cachedFetch<AggregateStats>("/api/stats")
+        .then((data) => {
           if (data.total_shocks > 0) {
             setStats(data);
             return true;
@@ -81,7 +86,7 @@ export default function Home() {
         })
         .catch(() => false),
     ]).then(([shocksOk, statsOk]) => {
-      setUsingDummy(!shocksOk && !statsOk);
+      setUsingDummy(!(shocksOk || statsOk));
       setLoading(false);
     });
   }, []);
@@ -96,6 +101,8 @@ export default function Home() {
   // Client-side filtering based on dashboard controls
   const filteredShocks = useMemo(() => {
     return allShocks.filter((s) => {
+      // Exclude resolved markets (probability at 0% or 100%)
+      if (s.p_after <= 0.01 || s.p_after >= 0.99) return false;
       if (s.abs_delta < filters.theta) return false;
       if (filters.category !== "all" && s.category !== filters.category)
         return false;
@@ -122,7 +129,10 @@ export default function Home() {
       total_shocks: filteredShocks.length,
       reversion_rate_6h: reversionRate,
       mean_reversion_6h: meanReversion,
-    };
+      [`reversion_rate_${filters.horizon}`]: reversionRate,
+      [`mean_reversion_${filters.horizon}`]: meanReversion,
+      [`sample_size_${filters.horizon}`]: revValues.length,
+    } as AggregateStats;
   }, [filteredShocks, stats, filters.horizon]);
 
   const categories = useMemo(() => {
@@ -147,8 +157,11 @@ export default function Home() {
     return allShocks
       .filter(
         (s) =>
-          s.is_live_alert === true ||
-          (s.is_recent === true && (s.hours_ago ?? 999) <= 6),
+          // Exclude resolved markets (price at 0% or 100%)
+          s.p_after > 0.01 &&
+          s.p_after < 0.99 &&
+          (s.is_live_alert === true ||
+            (s.is_recent === true && (s.hours_ago ?? 999) <= 6)),
       )
       .sort((a, b) => (a.hours_ago ?? 999) - (b.hours_ago ?? 999));
   }, [allShocks]);
@@ -211,7 +224,12 @@ export default function Home() {
                               : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                           }`}
                         >
-                          <span>{cat}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span style={{ color: getCategoryColor(cat).text }}>
+                              <CategoryIcon category={cat} className="h-3.5 w-3.5" />
+                            </span>
+                            {cat}
+                          </span>
                           <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
                             {categoryCounts[cat] ?? 0}
                           </span>
@@ -228,12 +246,14 @@ export default function Home() {
                   shocks={filteredShocks}
                   seriesMap={seriesMap}
                   closeTimeMap={closeTimeMap}
+                  imageMap={imageMap}
                   theta={filters.theta}
                   horizon={filters.horizon}
                   onFilterChange={handleFilterChange}
+                  onVisibleIdsChange={handleVisibleIds}
                 />
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                  <Histogram shocks={filteredShocks} />
+                  <Histogram shocks={filteredShocks} horizon={filters.horizon} />
                   <CategoryBreakdown stats={stats} />
                 </div>
               </div>

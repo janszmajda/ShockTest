@@ -5,6 +5,25 @@ export const dynamic = "force-dynamic";
 
 const MIN_SAMPLE = 5;
 
+/* ── Simple in-memory cache (serverless-safe via module scope) ── */
+interface CacheEntry {
+  data: unknown;
+  ts: number;
+}
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+/* ── Only fetch the fields we actually use ── */
+const PROJECTION = {
+  _id: 1,
+  category: 1,
+  abs_delta: 1,
+  delta: 1,
+  reversion_1h: 1,
+  reversion_6h: 1,
+  reversion_24h: 1,
+};
+
 interface ShockDoc {
   _id: string;
   category: string | null;
@@ -137,6 +156,27 @@ function computeBacktest(shocks: ShockDoc[]) {
   return result;
 }
 
+/**
+ * Fetch all shock docs (projected) with a 30s in-memory cache.
+ * shock_events is a small collection (hundreds–low thousands), so one
+ * lightweight query + JS filtering beats up to 3 sequential Mongo queries.
+ */
+async function getAllShocks(): Promise<ShockDoc[]> {
+  const KEY = "all_shocks";
+  const hit = cache.get(KEY);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data as ShockDoc[];
+
+  const client = await clientPromise;
+  const db = client.db("shocktest");
+  const docs = (await db
+    .collection("shock_events")
+    .find({}, { projection: PROJECTION })
+    .toArray()) as unknown as ShockDoc[];
+
+  cache.set(KEY, { data: docs, ts: Date.now() });
+  return docs;
+}
+
 export async function GET(request: NextRequest) {
   const t0 = Date.now();
   try {
@@ -150,44 +190,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "abs_delta is required" }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    console.log(`[/api/similar-stats] mongo connect: ${Date.now() - t0}ms (cat=${category}, delta=${absDelta})`);
-    const db = client.db("shocktest");
+    /* One cached fetch, then filter in JS (avoids up to 3 Mongo round-trips) */
+    const all = await getAllShocks();
+    console.log(`[/api/similar-stats] fetched ${all.length} shocks: ${Date.now() - t0}ms (cat=${category}, delta=${absDelta})`);
+    const eligible = excludeId
+      ? all.filter((s) => String(s._id) !== excludeId)
+      : all;
 
-    // Level 1 (tight): same category + similar magnitude + same direction
-    // Level 2 (category): same category only
-    // Level 3 (all): all shocks
-    // Use market_id to exclude the current shock's market (avoids ObjectId typing issues)
-    const tightFilter: Record<string, unknown> = {
-      abs_delta: { $gte: absDelta * 0.7, $lte: absDelta * 1.3 },
-    };
-    if (category) tightFilter.category = category;
-    if (deltaSign === "up") tightFilter.delta = { $gt: 0 };
-    else if (deltaSign === "down") tightFilter.delta = { $lt: 0 };
+    const loMag = absDelta * 0.7;
+    const hiMag = absDelta * 1.3;
+    const dirPositive = deltaSign === "up";
+    const dirNegative = deltaSign === "down";
 
-    const categoryFilter: Record<string, unknown> = {};
-    if (category) categoryFilter.category = category;
+    // Level 1 — tight: category + magnitude ±30% + direction
+    let shocks = eligible.filter(
+      (s) =>
+        s.abs_delta >= loMag &&
+        s.abs_delta <= hiMag &&
+        (!category || s.category === category) &&
+        (!dirPositive || s.delta > 0) &&
+        (!dirNegative || s.delta < 0),
+    );
+    let filterLevel: "tight" | "category" | "all" = "tight";
 
-    let shocks: ShockDoc[];
-    let filterLevel: "tight" | "category" | "all";
-
-    // Try tight filter first
-    shocks = (await db.collection("shock_events").find(tightFilter).toArray()) as unknown as ShockDoc[];
-    // Remove the current shock by excludeId if present
-    if (excludeId) shocks = shocks.filter((s) => String(s._id) !== excludeId);
-    filterLevel = "tight";
-
-    // Fall back to category-only if too few
+    // Level 2 — category only
     if (shocks.length < MIN_SAMPLE && category) {
-      shocks = (await db.collection("shock_events").find(categoryFilter).toArray()) as unknown as ShockDoc[];
-      if (excludeId) shocks = shocks.filter((s) => String(s._id) !== excludeId);
+      shocks = eligible.filter((s) => s.category === category);
       filterLevel = "category";
     }
 
-    // Fall back to all shocks if still too few
+    // Level 3 — all
     if (shocks.length < MIN_SAMPLE) {
-      shocks = (await db.collection("shock_events").find({}).toArray()) as unknown as ShockDoc[];
-      if (excludeId) shocks = shocks.filter((s) => String(s._id) !== excludeId);
+      shocks = eligible;
       filterLevel = "all";
     }
 
@@ -205,14 +239,21 @@ export async function GET(request: NextRequest) {
       distributions[h] = computeDistribution(vals);
     }
 
-    return NextResponse.json({
-      backtest,
-      distribution_1h: distributions["1h"],
-      distribution_6h: distributions["6h"],
-      distribution_24h: distributions["24h"],
-      sample_size: shocks.length,
-      filter_level: filterLevel,
-    });
+    return NextResponse.json(
+      {
+        backtest,
+        distribution_1h: distributions["1h"],
+        distribution_6h: distributions["6h"],
+        distribution_24h: distributions["24h"],
+        sample_size: shocks.length,
+        filter_level: filterLevel,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      },
+    );
   } catch {
     return NextResponse.json(
       { error: "Failed to compute similar stats" },

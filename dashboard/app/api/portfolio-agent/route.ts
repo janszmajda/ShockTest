@@ -55,7 +55,6 @@ async function callClaude(prompt: string, useSearch: boolean = false): Promise<s
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
 
-  console.log(`[Claude portfolio-agent prompt]\n${prompt}`);
 
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-20250514",

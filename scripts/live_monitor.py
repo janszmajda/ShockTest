@@ -73,10 +73,12 @@ def query_similar_stats(
     }
 
 CLOB_BASE = "https://clob.polymarket.com"
+GAMMA_BASE = "https://gamma-api.polymarket.com"
 THETA = 0.08  # shock threshold
 POLL_INTERVAL = 120  # seconds between checks
 LOOKBACK_POINTS = 30  # recent price points to scan for shocks
 MAX_WORKERS = 10  # concurrent API requests
+DISCOVERY_INTERVAL = 10  # run discovery every N cycles (~20 min)
 
 
 def _fetch_one_market(token_id: str) -> list[dict]:
@@ -116,7 +118,7 @@ def fetch_latest_prices() -> int:
     # Get high-volume markets + markets with shocks
     all_poly = list(
         db["market_series"].find(
-            {"source": "polymarket"},
+            {"source": "polymarket", "resolved": {"$ne": True}},
             {"market_id": 1, "token_id": 1, "volume": 1},
         )
     )
@@ -168,8 +170,8 @@ def detect_live_shocks() -> list[dict]:
         if abs(delta) < THETA:
             continue
 
-        # Skip prices near 0 or 1 (likely resolved markets)
-        if not (0.05 <= p_last <= 0.95 and 0.05 <= p_first <= 0.95):
+        # Skip resolved markets (probability at 0% or 100%)
+        if p_last <= 0.01 or p_last >= 0.99 or p_first <= 0.01 or p_first >= 0.99:
             continue
 
         # Dedup: skip if we already logged this market's shock in the last 2 hours
@@ -255,10 +257,23 @@ def detect_live_shocks() -> list[dict]:
 
 
 def update_hours_ago() -> None:
-    """Keep hours_ago fresh for all recent shocks."""
+    """Keep hours_ago fresh for all recent shocks. Unmark resolved markets."""
     now = datetime.now(timezone.utc)
     recent = list(db["shock_events"].find({"is_recent": True}))
     for shock in recent:
+        # Check if market has resolved (price at 0% or 100%)
+        market = db["market_series"].find_one(
+            {"market_id": shock["market_id"]}, {"series": {"$slice": -1}}
+        )
+        if market and market.get("series"):
+            last_p = float(market["series"][-1].get("p", 0.5))
+            if last_p <= 0.01 or last_p >= 0.99:
+                db["shock_events"].update_one(
+                    {"_id": shock["_id"]},
+                    {"$set": {"is_recent": False, "is_live_alert": False}},
+                )
+                continue
+
         t2_str = shock.get("detected_at") or shock.get("t2")
         try:
             t2 = datetime.fromisoformat(t2_str.replace("Z", "+00:00"))
@@ -271,17 +286,155 @@ def update_hours_ago() -> None:
             continue
 
 
+def discover_new_markets() -> int:
+    """Check Polymarket for new active markets not yet in our DB.
+
+    Fetches the top markets by 24h volume, skips any already stored,
+    and inserts new ones with full price history.
+    Returns count of newly added markets.
+    """
+    import json
+
+    existing_ids = set(db["market_series"].distinct("market_id"))
+    added = 0
+
+    for offset in range(0, 300, 100):
+        try:
+            resp = requests.get(
+                f"{GAMMA_BASE}/markets",
+                params={
+                    "active": "true",
+                    "closed": "false",
+                    "limit": 100,
+                    "offset": offset,
+                    "order": "volume24hr",
+                    "ascending": "false",
+                },
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                break
+            markets = resp.json()
+            if not markets:
+                break
+        except Exception:
+            break
+
+        for m in markets:
+            mid = m.get("id", m.get("slug", ""))
+            if mid in existing_ids:
+                continue
+
+            # Only binary markets with token IDs
+            raw_tokens = m.get("clobTokenIds", "[]")
+            tokens = json.loads(raw_tokens) if isinstance(raw_tokens, str) else raw_tokens
+            if len(tokens) != 2:
+                continue
+            if float(m.get("volume", 0)) < 1000:
+                continue
+
+            token_id = tokens[0]
+            # Fetch price history
+            try:
+                hist_resp = requests.get(
+                    f"{CLOB_BASE}/prices-history",
+                    params={"market": token_id, "interval": "all", "fidelity": 1},
+                    timeout=15,
+                )
+                if hist_resp.status_code != 200:
+                    continue
+                history = hist_resp.json().get("history", [])
+            except Exception:
+                continue
+
+            series = [
+                {"t": float(pt["t"]), "p": float(pt["p"])}
+                for pt in history
+                if pt.get("t") is not None and pt.get("p") is not None
+            ]
+            if len(series) < 10:
+                continue
+
+            # Parse close time
+            end_date_raw = m.get("endDateIso") or m.get("end_date_iso")
+            close_time: float | None = None
+            if end_date_raw:
+                try:
+                    dt = datetime.fromisoformat(end_date_raw.replace("Z", "+00:00"))
+                    close_time = dt.timestamp()
+                except (ValueError, TypeError):
+                    pass
+
+            doc = {
+                "market_id": mid,
+                "source": "polymarket",
+                "question": m["question"],
+                "token_id": token_id,
+                "volume": float(m.get("volume", 0)),
+                "series": sorted(series, key=lambda x: x["t"]),
+                "category": None,
+                "close_time": close_time,
+            }
+            db["market_series"].update_one(
+                {"market_id": mid}, {"$set": doc}, upsert=True
+            )
+            existing_ids.add(mid)
+            added += 1
+            time.sleep(0.3)
+
+        if len(markets) < 100:
+            break
+
+    return added
+
+
+def mark_resolved_markets() -> int:
+    """Mark markets as resolved if their last price is at 0% or 100%.
+
+    Sets a 'resolved' flag so we stop polling them.
+    Returns count of newly resolved markets.
+    """
+    resolved = 0
+    markets = db["market_series"].find(
+        {"source": "polymarket", "resolved": {"$ne": True}},
+        {"market_id": 1, "series": {"$slice": -1}},
+    )
+    for m in markets:
+        series = m.get("series", [])
+        if not series:
+            continue
+        last_p = float(series[-1].get("p", 0.5))
+        if last_p <= 0.01 or last_p >= 0.99:
+            db["market_series"].update_one(
+                {"_id": m["_id"]}, {"$set": {"resolved": True}}
+            )
+            resolved += 1
+    return resolved
+
+
 def main() -> None:
     """Run the live monitor loop."""
     print("ShockTest Live Monitor")
     print(f"Polling every {POLL_INTERVAL}s | Threshold: {THETA} | Workers: {MAX_WORKERS}")
-    print("Using similar-shock matching for historical edge context")
+    print(f"Market discovery every {DISCOVERY_INTERVAL} cycles (~{DISCOVERY_INTERVAL * POLL_INTERVAL // 60} min)")
     print("Ctrl+C to stop\n")
+
+    cycle_count = 0
 
     while True:
         try:
+            cycle_count += 1
             cycle_start = time.time()
             ts = datetime.now().strftime("%H:%M:%S")
+
+            # Every N cycles: discover new markets + mark resolved ones
+            if cycle_count % DISCOVERY_INTERVAL == 1:
+                print(f"[{ts}] Discovering new markets...", end=" ", flush=True)
+                new_markets = discover_new_markets()
+                resolved = mark_resolved_markets()
+                print(f"+{new_markets} new, {resolved} resolved.", flush=True)
+                ts = datetime.now().strftime("%H:%M:%S")
+
             print(f"[{ts}] Fetching prices...", end=" ", flush=True)
             n = fetch_latest_prices()
             print(f"{n} updated.", end=" ", flush=True)

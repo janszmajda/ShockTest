@@ -14,22 +14,26 @@ export async function GET(request: Request) {
 
     const db = client.db("shocktest");
 
+    const cacheHeaders = {
+      "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+    };
+
     if (marketId) {
       const market = await db
         .collection("market_series")
         .findOne({ market_id: marketId });
       console.log(`[/api/markets?id=${marketId}] query done: ${Date.now() - t0}ms`);
-      return NextResponse.json(market);
+      return NextResponse.json(market, { headers: cacheHeaders });
     }
 
     const markets = await db
       .collection("market_series")
       .find({})
-      .project({ series: 0 })
+      .project({ market_id: 1, source: 1, question: 1, category: 1, volume: 1, close_time: 1, token_id: 1 })
       .toArray();
 
     console.log(`[/api/markets] query done: ${Date.now() - t0}ms (${markets.length} docs)`);
-    return NextResponse.json(markets);
+    return NextResponse.json(markets, { headers: cacheHeaders });
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch markets" },

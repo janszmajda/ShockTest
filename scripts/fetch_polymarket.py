@@ -74,6 +74,84 @@ def fetch_price_history(token_id: str) -> list[dict]:
     return series
 
 
+def _extract_category(market: dict) -> str | None:
+    """Extract category from Polymarket Gamma API tags field.
+
+    The API returns tags like:
+      [{"id": "sports", "label": "Sports", "slug": "sports"}, ...]
+    or sometimes a simple string list. Map to our standard categories.
+    """
+    # Map Polymarket tag slugs/labels to our categories
+    TAG_MAP: dict[str, str] = {
+        "sports": "sports",
+        "basketball": "sports",
+        "football": "sports",
+        "baseball": "sports",
+        "soccer": "sports",
+        "hockey": "sports",
+        "tennis": "sports",
+        "golf": "sports",
+        "mma": "sports",
+        "boxing": "sports",
+        "ufc": "sports",
+        "nba": "sports",
+        "nfl": "sports",
+        "mlb": "sports",
+        "nhl": "sports",
+        "mls": "sports",
+        "f1": "sports",
+        "esports": "esports",
+        "gaming": "esports",
+        "crypto": "crypto",
+        "cryptocurrency": "crypto",
+        "defi": "crypto",
+        "bitcoin": "crypto",
+        "ethereum": "crypto",
+        "finance": "finance",
+        "economics": "finance",
+        "business": "finance",
+        "stocks": "finance",
+        "politics": "politics",
+        "us-politics": "politics",
+        "elections": "elections",
+        "us-elections": "elections",
+        "midterms": "elections",
+        "world-politics": "geopolitics",
+        "geopolitics": "geopolitics",
+        "international": "geopolitics",
+        "war": "geopolitics",
+        "tech": "tech",
+        "technology": "tech",
+        "ai": "tech",
+        "science": "science",
+        "health": "science",
+        "climate": "science",
+        "culture": "culture",
+        "entertainment": "culture",
+        "pop-culture": "culture",
+        "music": "culture",
+        "movies": "culture",
+        "tv": "culture",
+        "weather": "weather",
+    }
+
+    tags = market.get("tags")
+    if not tags:
+        return None
+
+    for tag in tags:
+        slug: str = ""
+        if isinstance(tag, dict):
+            slug = (tag.get("slug") or tag.get("id") or tag.get("label") or "").lower()
+        elif isinstance(tag, str):
+            slug = tag.lower()
+        slug = slug.strip()
+        if slug in TAG_MAP:
+            return TAG_MAP[slug]
+
+    return None
+
+
 def store_market(market: dict, series: list[dict]) -> int:
     """Store one market + price history in MongoDB. Returns point count."""
     tokens = parse_token_ids(market)
@@ -91,6 +169,8 @@ def store_market(market: dict, series: list[dict]) -> int:
         except (ValueError, TypeError):
             pass
 
+    api_category = _extract_category(market)
+
     doc = {
         "market_id": market.get("id", market.get("slug", token_id)),
         "source": "polymarket",
@@ -98,8 +178,9 @@ def store_market(market: dict, series: list[dict]) -> int:
         "token_id": token_id,
         "volume": float(market.get("volume", 0)),
         "series": sorted(series, key=lambda x: x["t"]),
-        "category": None,
+        "category": api_category,  # from Polymarket tags; categorize.py fills gaps
         "close_time": close_time,
+        "image_url": market.get("icon") or market.get("image") or None,
     }
 
     db["market_series"].update_one(

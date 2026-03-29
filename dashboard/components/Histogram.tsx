@@ -16,6 +16,7 @@ import { Shock } from "@/lib/types";
 
 interface HistogramProps {
   shocks: Shock[];
+  horizon?: "1h" | "6h" | "24h";
 }
 
 interface Bin {
@@ -25,9 +26,12 @@ interface Bin {
   midpoint: number;
 }
 
-function buildBins(shocks: Shock[]): Bin[] {
+function buildBins(shocks: Shock[], horizon: "1h" | "6h" | "24h" = "6h"): Bin[] {
   const values = shocks
-    .map((s) => s.reversion_6h)
+    .map((s) => {
+      const key = `reversion_${horizon}` as keyof Shock;
+      return s[key] as number | null;
+    })
     .filter((v): v is number => v !== null);
 
   const bins: Bin[] = [
@@ -54,15 +58,18 @@ function buildBins(shocks: Shock[]): Bin[] {
   return bins;
 }
 
-function computeMeanReversion(shocks: Shock[]): number | null {
+function computeMeanReversion(shocks: Shock[], horizon: "1h" | "6h" | "24h" = "6h"): number | null {
   const values = shocks
-    .map((s) => s.reversion_6h)
+    .map((s) => {
+      const key = `reversion_${horizon}` as keyof Shock;
+      return s[key] as number | null;
+    })
     .filter((v): v is number => v !== null);
   if (values.length === 0) return null;
   return (values.reduce((a, b) => a + b, 0) / values.length) * 100;
 }
 
-export default function Histogram({ shocks }: HistogramProps) {
+export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const categories = useMemo(() => {
@@ -76,8 +83,8 @@ export default function Histogram({ shocks }: HistogramProps) {
     return shocks.filter((s) => s.category === categoryFilter);
   }, [shocks, categoryFilter]);
 
-  const bins = buildBins(filtered);
-  const meanReversion = computeMeanReversion(filtered);
+  const bins = useMemo(() => buildBins(filtered, horizon), [filtered, horizon]);
+  const meanReversion = useMemo(() => computeMeanReversion(filtered, horizon), [filtered, horizon]);
 
   const zeroBinIndex = bins.findIndex((b) => b.label === "0 to 2");
   const zeroLabel = zeroBinIndex >= 0 ? bins[zeroBinIndex].label : undefined;
@@ -137,13 +144,13 @@ export default function Histogram({ shocks }: HistogramProps) {
                         : closest,
                     ).label
                   }
-                  stroke="#5b8def"
+                  stroke="#F26522"
                   strokeDasharray="6 3"
                   strokeWidth={2}
                   label={{
                     value: `Mean: ${meanReversion.toFixed(1)}pp`,
                     position: "top",
-                    style: { fontSize: 10, fill: "#5b8def" },
+                    style: { fontSize: 10, fill: "#F26522" },
                   }}
                 />
               )}
@@ -165,7 +172,7 @@ export default function Histogram({ shocks }: HistogramProps) {
         <p className="mt-2 text-center text-xs text-text-muted">
           <span className="text-yes-text">Green</span> = reversion &middot;{" "}
           <span className="text-no-text">Red</span> = continuation &middot;{" "}
-          <span style={{ color: "#5b8def" }}>Dashed</span> = mean
+          <span style={{ color: "#F26522" }}>Dashed</span> = mean
         </p>
 
         {/* Category filter */}
