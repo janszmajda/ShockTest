@@ -26,7 +26,9 @@ export default function LiveAlertBanner({ alerts }: LiveAlertBannerProps) {
                 <span className="text-sm font-semibold text-text-primary">
                   SHOCK DETECTED
                   {alert.hours_ago != null
-                    ? ` ${Math.round(alert.hours_ago)}h ago`
+                    ? alert.hours_ago < 1
+                      ? ` ${Math.max(1, Math.round(alert.hours_ago * 60))}m ago`
+                      : ` ${Math.round(alert.hours_ago)}h ago`
                     : ""}
                 </span>
               </div>
