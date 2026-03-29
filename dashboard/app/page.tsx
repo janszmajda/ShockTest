@@ -7,13 +7,13 @@ import PortfolioBuilder from "@/components/PortfolioBuilder";
 import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import Footer from "@/components/Footer";
-import { DUMMY_STATS } from "@/lib/dummyData";
+import { DUMMY_STATS, DUMMY_SHOCKS } from "@/lib/dummyData";
 import { Shock, AggregateStats, PricePoint } from "@/lib/types";
 import { cachedFetch, invalidate } from "@/lib/fetchCache";
 
 /* ── Helpers ── */
 
-const ROTATING_WORDS = ["overreaction", "panic", "shock", "spike", "outlier"];
+const ROTATING_WORDS = ["panic", "shock", "spike", "outlier"];
 
 function RotatingWord() {
   const [index, setIndex] = useState(0);
@@ -37,6 +37,65 @@ function RotatingWord() {
     >
       {ROTATING_WORDS[index]}
     </span>
+  );
+}
+
+/** Continuously rotating carousel — shows 3 cards, edges fade out */
+function CardCarousel({ children }: { children: React.ReactNode[] }) {
+  const count = children.length;
+  const CARD_WIDTH = 320;
+  const GAP = 20;
+  const STEP = CARD_WIDTH + GAP;
+  const VISIBLE = 3;
+  const containerWidth = VISIBLE * CARD_WIDTH + (VISIBLE - 1) * GAP;
+
+  // Double the children for seamless looping
+  const doubled = [...children, ...children];
+
+  const [offset, setOffset] = useState(0);
+  const rafRef = useRef(0);
+  const offsetRef = useRef(0);
+  const totalWidth = count * STEP;
+
+  useEffect(() => {
+    const speed = 0.3; // px per frame (~18px/s at 60fps)
+    const tick = () => {
+      offsetRef.current = (offsetRef.current + speed) % totalWidth;
+      setOffset(offsetRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [totalWidth]);
+
+  return (
+    <div className="relative mx-auto" style={{ width: containerWidth, height: 260, overflow: "hidden" }}>
+      {/* Left fade */}
+      <div
+        className="pointer-events-none absolute left-0 top-0 z-10 h-full w-24"
+        style={{ background: "linear-gradient(to right, var(--st-bg), transparent)" }}
+      />
+      {/* Right fade */}
+      <div
+        className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24"
+        style={{ background: "linear-gradient(to left, var(--st-bg), transparent)" }}
+      />
+      {/* Scrolling track */}
+      <div
+        className="absolute top-0 flex"
+        style={{
+          gap: GAP,
+          transform: `translateX(${-offset}px)`,
+          willChange: "transform",
+        }}
+      >
+        {doubled.map((child, i) => (
+          <div key={i} className="shrink-0" style={{ width: CARD_WIDTH }}>
+            {child}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -170,19 +229,10 @@ function ShockCard({
   const isLive = !marketClosed && !isResolved;
   const isUp = shock.delta > 0;
   const catColor = shock.category ? getCategoryColor(shock.category) : null;
-  const [hovered, setHovered] = useState(false);
-
   return (
     <Link
       href={`/shock/${shock._id}`}
-      className="flex flex-col rounded-lg bg-surface-1 p-5 transition-all hover:translate-y-0.5 hover:shadow-none hover:bg-surface-2 shadow-sm"
-      style={{
-        border: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-border)"}`,
-        borderLeft: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-accent)"}`,
-        borderBottom: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-accent)"}`,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="shock-card flex flex-col rounded-lg bg-surface-1 p-5 transition-all hover:translate-y-0.5 hover:shadow-none shadow-sm"
     >
       {/* Top row: badges + time ago */}
       <div className="mb-2 flex items-center justify-between">
@@ -468,7 +518,7 @@ export default function Home() {
 
   /* === Section 2: Featured shocks === */
   const featuredShocks = useMemo(() => {
-    return [...liveShocks]
+    const live = [...liveShocks]
       .filter((s) => s.p_after > 0.01 && s.p_after < 0.99)
       .sort((a, b) => {
         const aLive = a.is_live_alert ? 1 : 0;
@@ -482,7 +532,18 @@ export default function Home() {
           : new Date(b.t2).getTime();
         return bTime - aTime;
       })
-      .slice(0, 3);
+      .slice(0, 5);
+    if (live.length > 0) return live;
+    // Strip reversion/post-move data from dummies so they match live card appearance
+    return DUMMY_SHOCKS.slice(0, 5).map((s) => ({
+      ...s,
+      reversion_1h: null,
+      reversion_6h: null,
+      reversion_24h: null,
+      post_move_1h: null,
+      post_move_6h: null,
+      post_move_24h: null,
+    }));
   }, [liveShocks]);
 
   // Fetch featured sparklines
@@ -619,9 +680,26 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── Featured Shocks Carousel (always visible) ── */}
+        <section className="mx-auto max-w-7xl overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
+          <CardCarousel>
+            {featuredShocks.map((shock) => (
+              <ShockCard
+                key={shock._id}
+                shock={shock}
+                series={seriesMap[shock.market_id]}
+                imageUrl={imageMap[shock.market_id]}
+                closeTime={closeTimeMap[shock.market_id]}
+                horizon="6h"
+                now={now}
+              />
+            ))}
+          </CardCarousel>
+        </section>
+
         {/* ── Empty state when no shocks in the last hour ── */}
         {noShocks ? (
-          <section className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6 lg:px-8">
+          <section className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
             <div className="mx-auto max-w-md">
               <CountdownRing durationMs={120000} />
               <p className="text-sm text-text-secondary">
@@ -637,33 +715,6 @@ export default function Home() {
           </section>
         ) : (
           <>
-            {/* ── SECTION 2: Featured Shocks ── */}
-            {featuredShocks.length > 0 && (
-              <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-                <div
-                  className={`mx-auto grid gap-5 ${
-                    featuredShocks.length >= 3
-                      ? "grid-cols-1 md:grid-cols-3"
-                      : featuredShocks.length === 2
-                        ? "grid-cols-1 md:max-w-3xl md:grid-cols-2"
-                        : "grid-cols-1 md:max-w-md"
-                  }`}
-                >
-                  {featuredShocks.map((shock) => (
-                    <ShockCard
-                      key={shock._id}
-                      shock={shock}
-                      series={seriesMap[shock.market_id]}
-                      imageUrl={imageMap[shock.market_id]}
-                      closeTime={closeTimeMap[shock.market_id]}
-                      horizon="6h"
-                      now={now}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-
             {/* ── SECTION 3: Explainer Text ── */}
             <section className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
               <h2 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
