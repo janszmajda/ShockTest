@@ -22,7 +22,6 @@ export default function ScenarioPanel({
 }: ScenarioPanelProps) {
   const [targetProb, setTargetProb] = useState(Math.round(entryPrice * 100));
   const [daysToResolution, setDaysToResolution] = useState(30);
-  const [scenarioSize, setScenarioSize] = useState(positionSize);
 
   const fadeDirection = shockDelta > 0 ? "buy_no" : "buy_yes";
 
@@ -32,12 +31,12 @@ export default function ScenarioPanel({
     let pnlAtTarget: number;
     if (fadeDirection === "buy_no") {
       const costPerShare = 1 - entryPrice;
-      const shares = scenarioSize / costPerShare;
-      pnlAtTarget = shares * (1 - p) - scenarioSize;
+      const shares = positionSize / costPerShare;
+      pnlAtTarget = shares * (1 - p) - positionSize;
     } else {
       const costPerShare = entryPrice;
-      const shares = scenarioSize / costPerShare;
-      pnlAtTarget = shares * p - scenarioSize;
+      const shares = positionSize / costPerShare;
+      pnlAtTarget = shares * p - positionSize;
     }
 
     const timeDecayFactor = Math.min(daysToResolution / 30, 1);
@@ -45,32 +44,29 @@ export default function ScenarioPanel({
       ? 0.5 + (backtestStats.win_rate_6h - 0.5) * timeDecayFactor
       : 0.5;
     const adjustedEV = backtestStats
-      ? backtestStats.avg_pnl_6h * scenarioSize * timeDecayFactor
+      ? backtestStats.avg_pnl_6h * positionSize * timeDecayFactor
       : 0;
 
-    const maxLoss = -scenarioSize;
+    const maxLoss = -positionSize;
 
     return { pnlAtTarget, adjustedWinRate, adjustedEV, maxLoss, timeDecayFactor };
   }, [
     targetProb,
     daysToResolution,
-    scenarioSize,
+    positionSize,
     entryPrice,
     fadeDirection,
     backtestStats,
   ]);
 
   return (
-    <div className="rounded-lg border border-border bg-surface-2 p-6">
-      <h4 className="text-lg font-semibold text-text-primary">
-        Scenario Analysis — What If?
-      </h4>
+    <div>
       <p className="mb-4 text-xs text-text-muted">
         Explore how your fade position performs under different assumptions
         {category && ` (${category} market)`}
       </p>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
           <label className="block text-sm font-medium text-text-secondary">
             Probability moves to:{" "}
@@ -106,22 +102,6 @@ export default function ScenarioPanel({
             {daysToResolution < 7 &&
               " — Short horizon, less time for reversion"}
           </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text-secondary">
-            Position:{" "}
-            <span className="font-semibold text-accent">${scenarioSize}</span>
-          </label>
-          <input
-            type="range"
-            min={10}
-            max={5000}
-            step={10}
-            value={scenarioSize}
-            onChange={(e) => setScenarioSize(Number(e.target.value))}
-            className="mt-1 w-full"
-          />
         </div>
       </div>
 

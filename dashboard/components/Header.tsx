@@ -79,11 +79,7 @@ export function ExtensionButton() {
         className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all hover:opacity-80"
         style={{ background: "var(--st-accent)", color: "#fff" }}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
-          <polyline points="7 11 12 16 17 11"/>
-          <line x1="12" y1="4" x2="12" y2="16"/>
-        </svg>
+        <Image src="/pngegg.png" alt="Chrome" width={16} height={16} />
         Get Extension
       </button>
       {showExtension && <ExtensionPopup onClose={() => setShowExtension(false)} />}

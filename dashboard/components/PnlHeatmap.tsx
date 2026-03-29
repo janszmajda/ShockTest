@@ -83,10 +83,7 @@ export default function PnlHeatmap({
   }, [entryPrice, positionSize, direction]);
 
   return (
-    <div className="rounded-lg border border-border bg-surface-1 p-6">
-      <h4 className="text-lg font-semibold text-text-primary">
-        P&L Heatmap — Probability vs. Time to Resolution
-      </h4>
+    <div>
       <p className="mb-4 text-xs text-text-muted">
         {direction === "buy_no" ? "Buy NO" : "Buy YES"} at{" "}
         {(entryPrice * 100).toFixed(0)}% with ${positionSize} — green = profit,
@@ -136,12 +133,12 @@ export default function PnlHeatmap({
                 return (
                   <div
                     key={prob}
-                    className={`cursor-crosshair border p-1 text-center text-[9px] ${
-                      isHovered
-                        ? "border-accent ring-1 ring-accent"
-                        : "border-border"
-                    }`}
-                    style={{ backgroundColor: pnlColor(pnl, maxAbs) }}
+                    className="cursor-crosshair border p-1 text-center text-[9px]"
+                    style={{
+                      backgroundColor: pnlColor(pnl, maxAbs),
+                      borderColor: isHovered ? "var(--st-accent)" : "transparent",
+                      boxShadow: isHovered ? "0 0 0 1px var(--st-accent)" : "none",
+                    }}
                     onMouseEnter={() => setHovered({ prob, days, pnl })}
                     onMouseLeave={() => setHovered(null)}
                   >

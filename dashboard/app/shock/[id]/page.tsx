@@ -181,7 +181,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           <h2 className="text-2xl font-bold text-text-primary">
             {shock.question}
           </h2>
-          <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-text-muted">
             <span>Source: {shock.source}</span>
             <span>&middot;</span>
             <span>Category: {shock.category ?? "uncategorized"}</span>
@@ -191,6 +191,18 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               {(shock.p_after * 100).toFixed(0)}% (
               {shock.delta > 0 ? "+" : ""}
               {(shock.delta * 100).toFixed(1)}pp)
+            </span>
+            <span>&middot;</span>
+            <span className="inline-flex items-center gap-1">
+              Position: $
+              <input
+                type="number"
+                value={positionSize}
+                onChange={(e) => setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))}
+                min={1}
+                max={10000}
+                className="w-20 rounded-md border border-border bg-surface-2 px-2 py-0.5 text-sm"
+              />
             </span>
           </div>
         </div>
@@ -298,21 +310,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               P&amp;L Heatmap
             </span>
           </summary>
-          <div className="space-y-3 px-5 pb-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-text-muted">Position Size:</label>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-text-muted">$</span>
-                <input
-                  type="number"
-                  value={positionSize}
-                  onChange={(e) => setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))}
-                  min={1}
-                  max={10000}
-                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
-                />
-              </div>
-            </div>
+          <div className="px-5 pb-4">
             <PnlHeatmap
               entryPrice={shock.p_after}
               positionSize={positionSize}
@@ -328,21 +326,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               Scenario Analysis
             </span>
           </summary>
-          <div className="space-y-3 px-5 pb-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-text-muted">Position Size:</label>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-text-muted">$</span>
-                <input
-                  type="number"
-                  value={positionSize}
-                  onChange={(e) => setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))}
-                  min={1}
-                  max={10000}
-                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
-                />
-              </div>
-            </div>
+          <div className="px-5 pb-4">
             <ScenarioPanel
               entryPrice={shock.p_after}
               shockDelta={shock.delta}
@@ -364,7 +348,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
                 Fade This Shock?
               </span>
             </summary>
-            <div className="px-1 pb-1">
+            <div className="px-5 pb-4">
               <TradeSimulator
                 shockDelta={shock.delta}
                 shockCategory={shock.category}
@@ -376,6 +360,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
                 }}
                 sampleSize={similarStats.sample_size}
                 filterLevel={similarStats.filter_level}
+                positionSize={positionSize}
               />
             </div>
           </details>

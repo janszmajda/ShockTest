@@ -27,6 +27,7 @@ interface TradeSimulatorProps {
   };
   sampleSize?: number;
   filterLevel?: "tight" | "category" | "all";
+  positionSize?: number;
 }
 
 function MetricCard({
@@ -63,8 +64,10 @@ export default function TradeSimulator({
   distributions,
   sampleSize,
   filterLevel,
+  positionSize: externalPositionSize,
 }: TradeSimulatorProps) {
-  const [positionSize, setPositionSize] = useState(100);
+  const [internalPositionSize, setPositionSize] = useState(100);
+  const positionSize = externalPositionSize ?? internalPositionSize;
   const horizon: Horizon = "1h";
 
   const distribution = distributions[horizon];
@@ -98,12 +101,9 @@ export default function TradeSimulator({
   }, [distribution, positionSize]);
 
   return (
-    <div className="space-y-6 rounded-lg border border-border bg-surface-1 p-6">
+    <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-text-primary">
-          Fade This Shock?
-        </h3>
-        <p className="mt-1 text-sm text-text-muted">
+        <p className="text-sm text-text-muted">
           Based on{" "}
           <span className="font-medium">
             {sampleSize ?? backtest.total_trades} {filterLevel ? FILTER_LABELS[filterLevel] : "historical shocks"}
@@ -120,24 +120,25 @@ export default function TradeSimulator({
         )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-6">
-        <div>
-          <label className="block text-sm font-medium text-text-secondary">
-            Position Size ($)
-          </label>
-          <input
-            type="number"
-            value={positionSize}
-            onChange={(e) =>
-              setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))
-            }
-            min={1}
-            max={10000}
-            className="mt-1 w-32 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
-          />
+      {!externalPositionSize && (
+        <div className="flex flex-wrap items-end gap-6">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary">
+              Position Size ($)
+            </label>
+            <input
+              type="number"
+              value={positionSize}
+              onChange={(e) =>
+                setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))
+              }
+              min={1}
+              max={10000}
+              className="mt-1 w-32 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+            />
+          </div>
         </div>
-
-      </div>
+      )}
 
       {!distribution ? (
         <div className="rounded-lg border border-border bg-accent-dim p-4 text-center text-sm text-accent">
