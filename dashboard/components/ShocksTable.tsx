@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Shock, PricePoint } from "@/lib/types";
 import { DashboardFilters } from "@/components/DashboardControls";
@@ -12,9 +12,10 @@ interface ShocksTableProps {
   theta?: number;
   horizon?: "1h" | "6h" | "24h";
   onFilterChange?: (filters: Partial<DashboardFilters>) => void;
+  onVisibleIdsChange?: (ids: string[]) => void;
 }
 
-type SortKey = "abs_delta" | "t2" | "reversion_6h";
+type SortKey = "abs_delta" | "t2" | "reversion";
 const PAGE_SIZE = 10;
 
 /** Inline SVG sparkline from real price series data */
@@ -26,7 +27,15 @@ function MiniSparkline({
   shock: Shock;
 }) {
   const points: { t: number; p: number }[] = useMemo(() => {
-    if (series && series.length >= 2) return series;
+    if (series && series.length >= 2) {
+      // Trim series: show data up to ~10% past t2 so the shock dot is near the end
+      const t2 = new Date(shock.t2).getTime() / 1000;
+      const t1 = new Date(shock.t1).getTime() / 1000;
+      const shockDuration = Math.abs(t2 - t1) || 3600;
+      const cutoff = t2 + shockDuration * 0.5; // show a little post-shock
+      const trimmed = series.filter((pt) => pt.t <= cutoff);
+      return trimmed.length >= 2 ? trimmed : series;
+    }
     const synth: { t: number; p: number }[] = [
       { t: 0, p: shock.p_before },
       { t: 1, p: shock.p_after },
@@ -40,51 +49,43 @@ function MiniSparkline({
     return synth;
   }, [series, shock]);
 
-  if (points.length < 2) return null;
+  const svgData = useMemo(() => {
+    if (points.length < 2) return null;
 
-  const w = 300;
-  const h = 44;
-  const pad = 2;
+    const w = 300;
+    const h = 44;
+    const pad = 2;
 
-  const pValues = points.map((pt) => pt.p);
-  const min = Math.min(...pValues);
-  const max = Math.max(...pValues);
-  const range = max - min || 0.01;
+    const pValues = points.map((pt) => pt.p);
+    const min = Math.min(...pValues);
+    const max = Math.max(...pValues);
+    const range = max - min || 0.01;
 
-  const coords = points.map((pt, i) => ({
-    x: pad + (i / (points.length - 1)) * (w - pad * 2),
-    y: pad + (1 - (pt.p - min) / range) * (h - pad * 2),
-  }));
+    const coords = points.map((pt, i) => ({
+      x: pad + (i / (points.length - 1)) * (w - pad * 2),
+      y: pad + (1 - (pt.p - min) / range) * (h - pad * 2),
+    }));
 
-  const linePath = coords
-    .map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`)
-    .join(" ");
-  const areaPath = `${linePath} L${coords[coords.length - 1].x.toFixed(1)},${(h - pad).toFixed(1)} L${coords[0].x.toFixed(1)},${(h - pad).toFixed(1)} Z`;
+    const linePath = coords
+      .map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`)
+      .join(" ");
+    const areaPath = `${linePath} L${coords[coords.length - 1].x.toFixed(1)},${(h - pad).toFixed(1)} L${coords[0].x.toFixed(1)},${(h - pad).toFixed(1)} Z`;
+
+    const dot = coords[coords.length - 1];
+    return { w, h, linePath, areaPath, dot };
+  }, [points]);
+
+  if (!svgData) return null;
 
   const isUp = shock.delta > 0;
   const strokeColor = isUp ? "var(--st-yes)" : "var(--st-no)";
   const fillColor = isUp ? "rgba(34,199,138,0.10)" : "rgba(240,92,92,0.10)";
 
-  let shockIdx = -1;
-  if (series && series.length >= 2) {
-    const t2 = new Date(shock.t2).getTime() / 1000;
-    let bestDist = Infinity;
-    for (let i = 0; i < points.length; i++) {
-      const dist = Math.abs(points[i].t - t2);
-      if (dist < bestDist) {
-        bestDist = dist;
-        shockIdx = i;
-      }
-    }
-  } else {
-    shockIdx = 1;
-  }
-
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="block h-10 flex-1" preserveAspectRatio="xMidYMid meet">
-      <path d={areaPath} fill={fillColor} />
+    <svg viewBox={`0 0 ${svgData.w} ${svgData.h}`} className="block h-10 flex-1" preserveAspectRatio="xMidYMid meet">
+      <path d={svgData.areaPath} fill={fillColor} />
       <path
-        d={linePath}
+        d={svgData.linePath}
         fill="none"
         stroke={strokeColor}
         strokeWidth={1.5}
@@ -92,10 +93,10 @@ function MiniSparkline({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {shockIdx >= 0 && shockIdx < coords.length && (
+      {svgData.dot && (
         <circle
-          cx={coords[shockIdx].x}
-          cy={coords[shockIdx].y}
+          cx={svgData.dot.x}
+          cy={svgData.dot.y}
           r={2.5}
           fill={strokeColor}
         />
@@ -122,6 +123,7 @@ export default function ShocksTable({
   theta = 0.08,
   horizon = "6h",
   onFilterChange,
+  onVisibleIdsChange,
 }: ShocksTableProps) {
   const [sortBy, setSortBy] = useState<SortKey>("t2");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -130,14 +132,21 @@ export default function ShocksTable({
 
   const sorted = useMemo(() => {
     const query = search.toLowerCase().trim();
-    const filtered = query
-      ? shocks.filter(
-          (s) =>
-            s.question.toLowerCase().includes(query) ||
-            (s.category ?? "").toLowerCase().includes(query) ||
-            (s.source ?? "").toLowerCase().includes(query),
-        )
-      : shocks;
+    let filtered: Shock[];
+    if (query) {
+      // When searching, show ALL shocks (including old/non-live)
+      filtered = shocks.filter(
+        (s) =>
+          s.question.toLowerCase().includes(query) ||
+          (s.category ?? "").toLowerCase().includes(query) ||
+          (s.source ?? "").toLowerCase().includes(query),
+      );
+    } else {
+      // Default: only show recent/live shocks
+      filtered = shocks.filter(
+        (s) => s.is_recent === true || s.is_live_alert === true,
+      );
+    }
 
     return [...filtered].sort((a, b) => {
       const aLive = a.is_live_alert === true ? 1 : 0;
@@ -148,14 +157,28 @@ export default function ShocksTable({
       if (sortBy === "abs_delta") return mul * (a.abs_delta - b.abs_delta);
       if (sortBy === "t2")
         return mul * (new Date(a.t2).getTime() - new Date(b.t2).getTime());
-      if (sortBy === "reversion_6h")
-        return mul * ((a.reversion_6h ?? 0) - (b.reversion_6h ?? 0));
+      if (sortBy === "reversion") {
+        const key = `reversion_${horizon}` as keyof Shock;
+        return mul * (((a[key] as number) ?? 0) - ((b[key] as number) ?? 0));
+      }
       return 0;
     });
-  }, [shocks, sortBy, sortDir, search]);
+  }, [shocks, sortBy, sortDir, search, horizon]);
 
   const visible = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
+
+  // Notify parent of currently visible market IDs for lazy sparkline loading
+  const visibleIdsKey = useMemo(
+    () => Array.from(new Set(visible.map((s) => s.market_id))).sort().join(","),
+    [visible],
+  );
+  useEffect(() => {
+    if (onVisibleIdsChange && visibleIdsKey) {
+      onVisibleIdsChange(visibleIdsKey.split(","));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleIdsKey]);
 
   function handleSort(key: SortKey) {
     if (sortBy === key) {
@@ -208,7 +231,7 @@ export default function ShocksTable({
               [
                 { key: "t2", label: "Recent" },
                 { key: "abs_delta", label: "Largest" },
-                { key: "reversion_6h", label: "Reversion" },
+                { key: "reversion" as SortKey, label: "Reversion" },
               ] as const
             ).map((opt) => (
               <button
@@ -340,14 +363,18 @@ export default function ShocksTable({
                     {(Math.abs(shock.delta) * 100).toFixed(0)}
                     <span className="text-[10px]">pp</span>
                   </span>
-                  {shock.reversion_6h !== null && (
-                    <span
-                      className={`font-mono text-[10px] ${shock.reversion_6h > 0 ? "text-yes-text" : "text-no-text"}`}
-                    >
-                      {shock.reversion_6h > 0 ? "+" : ""}
-                      {(shock.reversion_6h * 100).toFixed(1)}pp rev
-                    </span>
-                  )}
+                  {(() => {
+                    const revKey = `reversion_${horizon}` as keyof Shock;
+                    const rev = shock[revKey] as number | null;
+                    return rev !== null ? (
+                      <span
+                        className={`font-mono text-[10px] ${rev > 0 ? "text-yes-text" : "text-no-text"}`}
+                      >
+                        {rev > 0 ? "+" : ""}
+                        {(rev * 100).toFixed(1)}pp rev ({horizon})
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
               </div>
 

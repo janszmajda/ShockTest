@@ -57,7 +57,6 @@ async function callK2(messages: Array<{ role: string; content: string }>): Promi
   if (!apiKey) throw new Error("K2_API_KEY not set");
 
   const userMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  console.log(`[K2 prompt]\n${userMsg}`);
 
   const res = await fetch(K2_URL, {
     method: "POST",

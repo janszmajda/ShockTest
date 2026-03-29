@@ -10,7 +10,6 @@ async function callK2(prompt: string): Promise<string> {
   const apiKey = process.env.K2_API_KEY;
   if (!apiKey) throw new Error("K2_API_KEY not set");
 
-  console.log(`[K2 shock-advisor prompt]\n${prompt}`);
 
   const res = await fetch(K2_URL, {
     method: "POST",

@@ -8,13 +8,31 @@ export async function GET() {
     const client = await clientPromise;
     const db = client.db("shocktest");
 
-    const shocks = await db
+    const raw = await db
       .collection("shock_events")
-      .find({})
+      .find({}, {
+        projection: {
+          market_id: 1, source: 1, question: 1, category: 1,
+          t1: 1, t2: 1, p_before: 1, p_after: 1, delta: 1, abs_delta: 1,
+          reversion_1h: 1, reversion_6h: 1, reversion_24h: 1,
+          is_recent: 1, is_live_alert: 1, hours_ago: 1, detected_at: 1,
+          ai_analysis: 1, fade_pnl_1h: 1, fade_pnl_6h: 1, fade_pnl_24h: 1,
+        },
+      })
       .sort({ abs_delta: -1 })
       .toArray();
 
-    return NextResponse.json(shocks);
+    // Strip live/recent flags from resolved markets (price at 0% or 100%)
+    const shocks = raw.map((s) => {
+      if (s.p_after <= 0.01 || s.p_after >= 0.99) {
+        return { ...s, is_live_alert: false, is_recent: false };
+      }
+      return s;
+    });
+
+    return NextResponse.json(shocks, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
+    });
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch shocks" },

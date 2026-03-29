@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mise run:*)",
+      "Bash(rm -rf .next)",
+      "Bash(npm run:*)",
+      "Bash(python -m py_compile analysis/categorize.py)",
+      "Bash(python -m py_compile scripts/fetch_polymarket.py)",
+      "Bash(where python3:*)",
+      "Bash(where py:*)",
+      "Bash(python3 -m py_compile analysis/categorize.py)",
+      "Bash(python3 -m py_compile scripts/fetch_polymarket.py)"
+    ]
+  }
+}
