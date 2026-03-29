@@ -9,7 +9,6 @@ async function callClaudeWithSearch(prompt: string): Promise<string> {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
 
-  console.log(`[Claude shock-advisor prompt]\n${prompt}`);
 
   const res = await fetch(CLAUDE_URL, {
     method: "POST",

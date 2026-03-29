@@ -17,6 +17,7 @@ import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { Shock, SimilarStatsResponse } from "@/lib/types";
 import { DUMMY_SHOCKS } from "@/lib/dummyData";
+import { cachedFetch } from "@/lib/fetchCache";
 
 interface SelectedShock {
   market_id: string;
@@ -44,16 +45,17 @@ export default function PortfolioPage() {
   const [agentError, setAgentError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/shocks")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed");
-        return r.json();
-      })
-      .then((data: Shock[]) => {
-        if (data.length > 0) setAllShocks(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const fetchShocks = () => {
+      cachedFetch<Shock[]>("/api/shocks")
+        .then((data) => {
+          if (data.length > 0) setAllShocks(data);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
+    fetchShocks();
+    const interval = setInterval(fetchShocks, 120000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch similar-stats lazily when selections change

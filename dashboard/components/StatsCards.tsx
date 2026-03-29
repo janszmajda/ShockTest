@@ -2,9 +2,17 @@ import { AggregateStats } from "@/lib/types";
 
 interface StatsCardsProps {
   stats: AggregateStats;
+  horizon?: "1h" | "6h" | "24h";
 }
 
-export default function StatsCards({ stats }: StatsCardsProps) {
+export default function StatsCards({ stats, horizon = "6h" }: StatsCardsProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = stats as any;
+  const revRate = (s[`reversion_rate_${horizon}`] as number | null) ?? stats.reversion_rate_6h;
+  const meanRev = (s[`mean_reversion_${horizon}`] as number | null) ?? stats.mean_reversion_6h;
+  const sampleSize = (s[`sample_size_${horizon}`] as number) ?? stats.sample_size_6h;
+  const winRate = (s.backtest?.[`win_rate_${horizon}`] as number | null) ?? stats.backtest?.win_rate_6h ?? null;
+
   const items = [
     {
       label: "Total Shocks",
@@ -13,44 +21,44 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       color: "text-text-primary",
     },
     {
-      label: "6h Reversion Rate",
+      label: `${horizon} Reversion Rate`,
       value:
-        stats.reversion_rate_6h !== null
-          ? `${(stats.reversion_rate_6h * 100).toFixed(1)}%`
+        revRate !== null
+          ? `${(revRate * 100).toFixed(1)}%`
           : "—",
       delta:
-        stats.reversion_rate_6h !== null && stats.reversion_rate_6h > 0.5
+        revRate !== null && revRate > 0.5
           ? "majority revert"
           : "below 50%",
       color:
-        stats.reversion_rate_6h !== null && stats.reversion_rate_6h > 0.5
+        revRate !== null && revRate > 0.5
           ? "text-yes-text"
           : "text-text-primary",
     },
     {
       label: "Mean Reversion",
       value:
-        stats.mean_reversion_6h !== null
-          ? `${(stats.mean_reversion_6h * 100).toFixed(1)}pp`
+        meanRev !== null
+          ? `${(meanRev * 100).toFixed(1)}pp`
           : "—",
-      delta: "avg magnitude at 6h",
+      delta: `avg magnitude at ${horizon}`,
       color: "text-text-primary",
     },
     {
       label: "Sample Size",
-      value: stats.sample_size_6h.toString(),
-      delta: `${stats.sample_size_6h} valid at 6h`,
+      value: sampleSize.toString(),
+      delta: `${sampleSize} valid at ${horizon}`,
       color: "text-text-primary",
     },
     {
       label: "Win Rate",
       value:
-        stats.backtest?.win_rate_6h != null
-          ? `${(stats.backtest.win_rate_6h * 100).toFixed(0)}%`
+        winRate != null
+          ? `${(winRate * 100).toFixed(0)}%`
           : "—",
-      delta: "fade strategy 6h",
+      delta: `fade strategy ${horizon}`,
       color:
-        stats.backtest?.win_rate_6h != null && stats.backtest.win_rate_6h > 0.5
+        winRate != null && winRate > 0.5
           ? "text-yes-text"
           : "text-text-primary",
     },

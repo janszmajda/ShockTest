@@ -21,7 +21,13 @@ if (!process.env.MONGODB_URI) {
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {
-  clientPromise = new MongoClient(process.env.MONGODB_URI).connect();
+  // Production: also cache on globalThis to reuse across serverless invocations
+  if (!globalWithMongo._mongoClientPromise) {
+    globalWithMongo._mongoClientPromise = new MongoClient(
+      process.env.MONGODB_URI,
+    ).connect();
+  }
+  clientPromise = globalWithMongo._mongoClientPromise;
 }
 
 export default clientPromise;
