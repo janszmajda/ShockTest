@@ -143,11 +143,19 @@ function ShockCard({
   const isLive = !marketClosed && !isResolved;
   const isUp = shock.delta > 0;
   const catColor = shock.category ? getCategoryColor(shock.category) : null;
+  const [hovered, setHovered] = useState(false);
 
   return (
     <Link
       href={`/shock/${shock._id}`}
-      className="flex flex-col rounded-lg border border-border bg-surface-1 p-5 transition-all hover:border-border-hover hover:bg-surface-2"
+      className="flex flex-col rounded-lg bg-surface-1 p-5 transition-all hover:translate-y-0.5 hover:shadow-none hover:bg-surface-2 shadow-sm"
+      style={{
+        border: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-border)"}`,
+        borderLeft: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-accent)"}`,
+        borderBottom: `1px solid ${hovered ? "var(--st-border-h)" : "var(--st-accent)"}`,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {/* Top row: badges + time ago */}
       <div className="mb-2 flex items-center justify-between">
@@ -275,7 +283,7 @@ function CountdownRing({ durationMs }: { durationMs: number }) {
           cy={26}
           r={r}
           fill="none"
-          stroke="var(--st-yes)"
+          stroke="var(--st-accent)"
           strokeWidth={3}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -515,7 +523,7 @@ export default function Home() {
   if (loading) {
     return (
       <>
-        <nav className="sticky top-0 z-50 border-b border-border bg-surface-base">
+        <nav className="sticky top-0 z-50 border-b-2 border-b-accent bg-surface-base">
           <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
             <Image
               src="/Frame 9.svg"
@@ -537,7 +545,7 @@ export default function Home() {
   return (
     <>
       {/* ── SECTION 1: Sticky Nav ── */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-surface-base">
+      <nav className="sticky top-0 z-50 border-b-2 border-b-accent bg-surface-base">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Image
             src="/Frame 9.svg"

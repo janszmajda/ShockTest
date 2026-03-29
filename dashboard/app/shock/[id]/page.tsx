@@ -194,7 +194,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* AI Advisor */}
-        <div className="rounded-lg border border-border bg-surface-1 p-5">
+        <div className="rounded-lg border border-accent bg-surface-1 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">AI Advisor</h3>
             <button
@@ -258,7 +258,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* 2. PriceChart */}
-        <div className="rounded-lg border border-border bg-surface-1 p-6">
+        <div className="rounded-lg border border-accent bg-surface-1 p-6">
           <h3 className="mb-4 text-sm font-medium text-text-muted">
             Probability Over Time
           </h3>
@@ -282,10 +282,10 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         )}
 
         {/* Collapsible analysis panels */}
-        <details className="group rounded-lg border border-border bg-surface-1">
+        <details className="group rounded-lg border border-accent bg-surface-1">
           <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
-              <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+              <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
               P&amp;L Heatmap
             </span>
           </summary>
@@ -312,10 +312,10 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </details>
 
-        <details className="group rounded-lg border border-border bg-surface-1">
+        <details className="group rounded-lg border border-accent bg-surface-1">
           <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
-              <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+              <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
               Scenario Analysis
             </span>
           </summary>
@@ -348,10 +348,10 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </details>
 
         {similarStats.backtest && (
-          <details className="group rounded-lg border border-border bg-surface-1">
+          <details className="group rounded-lg border border-accent bg-surface-1">
             <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-2">
-                <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+                <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
                 Fade This Shock?
               </span>
             </summary>
@@ -373,7 +373,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         )}
 
         {/* 6. Caveats */}
-        <div className="rounded-lg border border-border bg-surface-2 p-4">
+        <div className="rounded-lg border-l-2 bg-surface-2 p-4" style={{ borderLeftColor: "var(--st-accent)" }}>
           <p className="text-xs text-text-muted">
             All analysis is based on historical data. In-sample backtest only —
             no out-of-sample validation. Ignores transaction costs, slippage, and
