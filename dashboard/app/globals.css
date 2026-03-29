@@ -108,6 +108,7 @@ html, body {
 }
 .recharts-tooltip-item { color: var(--st-txt) !important; }
 .recharts-tooltip-label { color: var(--st-txt2) !important; }
+.recharts-wrapper, .recharts-wrapper * { outline: none !important; box-shadow: none !important; }
 
 /* ── Fade-in animation ── */
 @keyframes fadeIn {
