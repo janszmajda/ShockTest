@@ -92,7 +92,7 @@ html, body {
 }
 
 .font-mono {
-  font-family: var(--font-mono), 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
 }
 
 /* ── Recharts chart colors (used via inline style vars) ── */
@@ -151,8 +151,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
 }
 
-/* ── Smooth transitions ── */
-button, select, input, a { transition: all 0.15s ease; }
+/* ── Smooth transitions (only color/bg — never font-weight or border) ── */
+button, select, input, a { transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -361,14 +361,9 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                       } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          {(shock.is_recent || shock.is_live_alert) && (
-                            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-no-text" />
-                          )}
-                          <span className="truncate text-sm font-medium text-text-primary">
-                            {shock.question}
-                          </span>
-                        </div>
+                        <p className="truncate text-sm font-medium text-text-primary">
+                          {shock.question}
+                        </p>
                         <div className="mt-1 flex items-center gap-2">
                           {shock.category && (
                             <span className="text-[10px] uppercase tracking-wider text-text-muted">
