@@ -284,7 +284,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         )}
 
         {/* Collapsible analysis panels */}
-        <details className="group rounded-lg border border-accent bg-surface-1">
+        <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
           <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
               <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
@@ -314,7 +314,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </details>
 
-        <details className="group rounded-lg border border-accent bg-surface-1">
+        <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
           <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
               <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
@@ -350,7 +350,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </details>
 
         {similarStats.backtest && (
-          <details className="group rounded-lg border border-accent bg-surface-1">
+          <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
             <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-2">
                 <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
