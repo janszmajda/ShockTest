@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "ShockTest — Do Prediction Markets Overreact?",
   description:
     "Analyzing probability shocks in prediction markets to detect systematic mean reversion.",
+  icons: {
+    icon: "/BrowserLogo.svg",
+  },
 };
 
 export default function RootLayout({

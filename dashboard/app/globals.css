@@ -3,40 +3,40 @@
 /* ── Design tokens as CSS variables ── */
 :root {
   /* Dark mode (default) */
-  --st-bg: #0d0d0f;
-  --st-s1: #141418;
-  --st-s2: #1a1a1f;
-  --st-s3: #222228;
-  --st-border: rgba(255, 255, 255, 0.07);
-  --st-border-h: rgba(255, 255, 255, 0.14);
-  --st-txt: #e8e8ed;
-  --st-txt2: #8b8b9a;
-  --st-muted: #55555f;
+  --st-bg: #1a1a1a;
+  --st-s1: #2D2D2D;
+  --st-s2: #333333;
+  --st-s3: #3a3a3a;
+  --st-border: rgba(255, 255, 255, 0.1);
+  --st-border-h: rgba(255, 255, 255, 0.18);
+  --st-txt: #f5f5f5;
+  --st-txt2: #a0a0a0;
+  --st-muted: #666666;
   --st-yes: #22c78a;
   --st-yes-dim: rgba(34, 199, 138, 0.12);
   --st-no: #f05c5c;
   --st-no-dim: rgba(240, 92, 92, 0.12);
-  --st-accent: #5b8def;
-  --st-accent-dim: rgba(91, 141, 239, 0.12);
-  --st-grid: rgba(255, 255, 255, 0.05);
+  --st-accent: #F26522;
+  --st-accent-dim: rgba(242, 101, 34, 0.15);
+  --st-grid: rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="light"] {
-  --st-bg: #ffffff;
-  --st-s1: #ffffff;
+  --st-bg: #FFFFFF;
+  --st-s1: #FFFFFF;
   --st-s2: #fafafa;
-  --st-s3: #f5f5f5;
+  --st-s3: #f0f0f0;
   --st-border: #e5e5e5;
   --st-border-h: #d0d0d0;
-  --st-txt: #000000;
+  --st-txt: #2D2D2D;
   --st-txt2: #555555;
   --st-muted: #999999;
   --st-yes: #16a34a;
   --st-yes-dim: rgba(22, 163, 74, 0.08);
-  --st-no: #E63128;
-  --st-no-dim: rgba(230, 49, 40, 0.08);
-  --st-accent: #E63128;
-  --st-accent-dim: rgba(230, 49, 40, 0.06);
+  --st-no: #dc2626;
+  --st-no-dim: rgba(220, 38, 38, 0.08);
+  --st-accent: #F26522;
+  --st-accent-dim: rgba(242, 101, 34, 0.08);
   --st-grid: #f0f0f0;
 }
 
