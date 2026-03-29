@@ -361,21 +361,13 @@ export default function ShocksTable({
         })}
       </div>
 
-      {/* Show more / less */}
+      {/* Show more */}
       {hasMore && (
         <button
           onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
           className="mt-3 w-full rounded-lg border border-border bg-surface-1 py-2.5 text-xs font-medium text-text-secondary transition-all hover:bg-surface-2 hover:text-text-primary"
         >
           Show {PAGE_SIZE} more &middot; {sorted.length - visibleCount} remaining
-        </button>
-      )}
-      {!hasMore && visibleCount > PAGE_SIZE && sorted.length > PAGE_SIZE && (
-        <button
-          onClick={() => setVisibleCount(PAGE_SIZE)}
-          className="mt-3 w-full rounded-lg border border-border bg-surface-1 py-2.5 text-xs font-medium text-text-muted transition-all hover:bg-surface-2 hover:text-text-secondary"
-        >
-          Show less
         </button>
       )}
     </div>
