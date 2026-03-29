@@ -193,7 +193,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </div>
 
-        {/* AI Advisor */}
+        {/* AI Advisor (Claude with web search) */}
         <div className="rounded-lg border border-accent bg-surface-1 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">AI Advisor</h3>

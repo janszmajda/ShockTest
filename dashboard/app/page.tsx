@@ -40,7 +40,8 @@ function RotatingWord() {
   );
 }
 
-/** Continuously rotating carousel — shows 3 cards, edges fade out */
+/** Continuously rotating carousel — shows 3 cards, edges fade out.
+ *  When there are 3 or fewer cards, they sit stationary (no animation). */
 function CardCarousel({ children }: { children: React.ReactNode[] }) {
   const count = children.length;
   const CARD_WIDTH = 320;
@@ -48,9 +49,10 @@ function CardCarousel({ children }: { children: React.ReactNode[] }) {
   const STEP = CARD_WIDTH + GAP;
   const VISIBLE = 3;
   const containerWidth = VISIBLE * CARD_WIDTH + (VISIBLE - 1) * GAP;
+  const shouldAnimate = count > 3;
 
-  // Double the children for seamless looping
-  const doubled = [...children, ...children];
+  // Double the children for seamless looping (only needed when animating)
+  const items = shouldAnimate ? [...children, ...children] : children;
 
   const [offset, setOffset] = useState(0);
   const rafRef = useRef(0);
@@ -58,6 +60,7 @@ function CardCarousel({ children }: { children: React.ReactNode[] }) {
   const totalWidth = count * STEP;
 
   useEffect(() => {
+    if (!shouldAnimate) return;
     const speed = 0.3; // px per frame (~18px/s at 60fps)
     const tick = () => {
       offsetRef.current = (offsetRef.current + speed) % totalWidth;
@@ -66,7 +69,23 @@ function CardCarousel({ children }: { children: React.ReactNode[] }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [totalWidth]);
+  }, [totalWidth, shouldAnimate]);
+
+  // Static layout for 1–3 cards: centered, no fade overlays
+  if (!shouldAnimate) {
+    const staticWidth = count * CARD_WIDTH + (count - 1) * GAP;
+    return (
+      <div className="relative mx-auto flex justify-center" style={{ height: 260 }}>
+        <div className="flex" style={{ gap: GAP }}>
+          {children.map((child, i) => (
+            <div key={i} className="shrink-0" style={{ width: CARD_WIDTH }}>
+              {child}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mx-auto" style={{ width: containerWidth, height: 260, overflow: "hidden" }}>
@@ -89,7 +108,7 @@ function CardCarousel({ children }: { children: React.ReactNode[] }) {
           willChange: "transform",
         }}
       >
-        {doubled.map((child, i) => (
+        {items.map((child, i) => (
           <div key={i} className="shrink-0" style={{ width: CARD_WIDTH }}>
             {child}
           </div>

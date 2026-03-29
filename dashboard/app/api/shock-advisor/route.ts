@@ -9,7 +9,6 @@ async function callClaudeWithSearch(prompt: string): Promise<string> {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
 
-
   const res = await fetch(CLAUDE_URL, {
     method: "POST",
     headers: {
@@ -31,27 +30,15 @@ async function callClaudeWithSearch(prompt: string): Promise<string> {
   }
 
   const data = (await res.json()) as {
-    content: Array<{ type: string; text?: string; source?: { url: string; title: string } }>;
+    content: Array<{ type: string; text?: string }>;
   };
 
-  // Extract text blocks and source citations
-  const textParts: string[] = [];
-  const sources: string[] = [];
-
-  for (const block of data.content) {
-    if (block.type === "text" && block.text) {
-      textParts.push(block.text);
-    }
-    if (block.type === "web_search_tool_result") {
-      // Search results are inline — Claude weaves them into the response
-    }
-  }
-
-  const text = textParts.join("").replace(/<\/?cite[^>]*>/g, "").trim();
-  if (sources.length > 0) {
-    return `${text}\n\nSources:\n${sources.join("\n")}`;
-  }
-  return text;
+  return data.content
+    .filter((b) => b.type === "text" && b.text)
+    .map((b) => b.text!)
+    .join("")
+    .replace(/<\/?cite[^>]*>/g, "")
+    .trim();
 }
 
 export async function POST(req: Request) {
@@ -137,13 +124,11 @@ Respond in EXACTLY this JSON format, no other text:
 
     const raw = await callClaudeWithSearch(prompt);
 
-    // Extract JSON from response (Claude may wrap it in markdown code blocks)
     let parsed: { event: string; decision: string; details: string };
     try {
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
     } catch {
-      // Fallback if JSON parse fails
       parsed = { event: raw, decision: "", details: "" };
     }
 
