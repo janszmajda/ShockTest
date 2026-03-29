@@ -197,21 +197,23 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
 
         {/* AI Advisor (Claude with web search) */}
         <div className="rounded-lg border border-accent bg-surface-1 p-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">AI Advisor</h3>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">AI Advisor</h3>
+              {!advisorAnalysis && !advisorLoading && !advisorError && (
+                <p className="mt-1 text-sm text-text-muted">
+                  Searches the web for what caused this shock and gives a trade recommendation.
+                </p>
+              )}
+            </div>
             <button
               onClick={askAdvisor}
               disabled={advisorLoading}
-              className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="shrink-0 self-center rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {advisorLoading ? "Searching..." : advisorAnalysis ? "Re-analyze" : "Explain Shock"}
             </button>
           </div>
-          {!advisorAnalysis && !advisorLoading && !advisorError && (
-            <p className="mt-2 text-sm text-text-muted">
-              Searches the web for what caused this shock and gives a trade recommendation.
-            </p>
-          )}
           {advisorLoading && (
             <div className="mt-3 flex items-center gap-2 text-sm text-text-muted">
               <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -260,18 +262,23 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* 2. PriceChart */}
-        <div className="rounded-lg border border-accent bg-surface-1 p-6">
-          <h3 className="mb-4 text-sm font-medium text-text-muted">
-            Probability Over Time
-          </h3>
-          <PriceChart
-            series={series}
-            shockT1={shockT1}
-            shockT2={shockT2}
-            pBefore={shock.p_before}
-            pAfter={shock.p_after}
-          />
-        </div>
+        <details open className="group overflow-hidden rounded-lg border border-border bg-surface-1">
+          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
+              Probability Over Time
+            </span>
+          </summary>
+          <div className="px-5 pb-4">
+            <PriceChart
+              series={series}
+              shockT1={shockT1}
+              shockT2={shockT2}
+              pBefore={shock.p_before}
+              pAfter={shock.p_after}
+            />
+          </div>
+        </details>
 
         {/* 2b. AI Analysis (if available) */}
         {"ai_analysis" in shock &&
@@ -284,8 +291,8 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         )}
 
         {/* Collapsible analysis panels */}
-        <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
-          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+        <details className="group overflow-hidden rounded-lg border border-border bg-surface-1">
+          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
               <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
               P&amp;L Heatmap
@@ -314,8 +321,8 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </details>
 
-        <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
-          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+        <details className="group overflow-hidden rounded-lg border border-border bg-surface-1">
+          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
               <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
               Scenario Analysis
@@ -350,8 +357,8 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </details>
 
         {similarStats.backtest && (
-          <details className="group overflow-hidden rounded-lg border border-accent bg-surface-1">
-            <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+          <details className="group overflow-hidden rounded-lg border border-border bg-surface-1">
+            <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-2">
                 <span className="text-accent transition-transform group-open:rotate-90">&#9654;</span>
                 Fade This Shock?

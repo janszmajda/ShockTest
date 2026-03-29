@@ -109,6 +109,11 @@ html, body {
 .recharts-tooltip-item { color: var(--st-txt) !important; }
 .recharts-tooltip-label { color: var(--st-txt2) !important; }
 .recharts-wrapper, .recharts-wrapper * { outline: none !important; box-shadow: none !important; }
+.recharts-tooltip-cursor { fill: transparent !important; stroke: transparent !important; }
+
+/* Collapsible panels — orange border only when open */
+details.group[open] > summary { border-color: var(--st-accent) !important; }
+details.group.border-border[open] { border-color: var(--st-accent) !important; }
 
 /* ── Fade-in animation ── */
 @keyframes fadeIn {

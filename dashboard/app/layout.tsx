@@ -14,7 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ShockTest — Do Prediction Markets Overreact?",
+  title: "ShockTest",
   description:
     "Analyzing probability shocks in prediction markets to detect systematic mean reversion.",
   icons: {
