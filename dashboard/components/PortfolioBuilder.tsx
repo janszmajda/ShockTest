@@ -43,12 +43,6 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentReport, setAgentReport] = useState<string | null>(null);
   const [agentError, setAgentError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAll, setShowAll] = useState(false);
-  const [activeTab, setActiveTab] = useState<"recent" | "largest" | "live">(
-    "recent",
-  );
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Fetch similar-stats lazily when selections change
   useEffect(() => {
@@ -159,48 +153,11 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
       .map(([cat, count]) => ({ category: cat, count }));
   }, [selected]);
 
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    for (const s of allShocks) {
-      if (s.category) cats.add(s.category);
-    }
-    return ["all", ...Array.from(cats).sort()];
+  const sortedShocks = useMemo(() => {
+    return [...allShocks].sort(
+      (a, b) => new Date(b.t2).getTime() - new Date(a.t2).getTime(),
+    );
   }, [allShocks]);
-
-  const filteredShocks = useMemo(() => {
-    let filtered = [...allShocks];
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter((s) => s.category === categoryFilter);
-    }
-    if (activeTab === "live") {
-      filtered = filtered.filter((s) => s.is_recent || s.is_live_alert);
-      filtered.sort(
-        (a, b) => new Date(b.t2).getTime() - new Date(a.t2).getTime(),
-      );
-    } else if (activeTab === "recent") {
-      filtered.sort(
-        (a, b) => new Date(b.t2).getTime() - new Date(a.t2).getTime(),
-      );
-    } else {
-      filtered.sort((a, b) => b.abs_delta - a.abs_delta);
-    }
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (s) =>
-          s.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (s.category
-            ?.toLowerCase()
-            .includes(searchQuery.toLowerCase()) ??
-            false),
-      );
-    }
-    return showAll ? filtered : filtered.slice(0, 20);
-  }, [allShocks, searchQuery, showAll, activeTab, categoryFilter]);
-
-  const liveCount = useMemo(
-    () => allShocks.filter((s) => s.is_recent || s.is_live_alert).length,
-    [allShocks],
-  );
 
   const [now] = useState(() => Date.now());
   const formatTimeAgo = (t2: string) => {
@@ -376,101 +333,28 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
               </p>
             </div>
 
-            <div className="border-b border-border px-4 py-2">
-              <div className="relative">
-                <svg
-                  className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-text-muted"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search markets..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-muted focus:border-accent"
-                />
-              </div>
-
-              {/* Tabs */}
-              <div className="mt-2 flex items-center gap-1">
-                {(
-                  [
-                    { key: "recent", label: "Recent" },
-                    { key: "largest", label: "Largest" },
-                    { key: "live", label: "Live" },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                      activeTab === tab.key
-                        ? "bg-surface-3 text-text-primary"
-                        : "text-text-muted hover:text-text-secondary"
-                    }`}
-                  >
-                    {tab.label}
-                    {tab.key === "live" && liveCount > 0 && (
-                      <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-no-text" />
-                    )}
-                  </button>
-                ))}
-                <div className="flex-1" />
-                <button
-                  onClick={() => setShowAll(!showAll)}
-                  className="text-xs text-text-muted hover:text-accent"
-                >
-                  {showAll ? "Top 20" : `All ${allShocks.length}`}
-                </button>
-              </div>
-
-              {/* Category filter pills */}
-              <div className="mt-2 flex flex-wrap gap-1">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                      categoryFilter === cat
-                        ? "bg-accent text-white"
-                        : "bg-surface-2 text-text-muted hover:text-text-secondary"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Market list */}
-            <div className="max-h-[500px] overflow-y-auto">
-              {filteredShocks.length === 0 ? (
+            <div>
+              {sortedShocks.length === 0 ? (
                 <div className="px-4 py-8 text-center text-xs text-text-muted">
-                  No shocks match your filters
+                  No live shocks right now
                 </div>
               ) : (
-                filteredShocks.map((shock) => {
+                sortedShocks.map((shock, idx) => {
                   const isSelected = !!selected.find(
                     (s) => s.market_id === shock.market_id,
                   );
                   const prob = Math.round(shock.p_after * 100);
-                  const isLive = shock.is_recent || shock.is_live_alert;
+                  const isLast = idx === sortedShocks.length - 1;
 
                   return (
                     <button
                       key={shock._id}
                       onClick={() => addShock(shock)}
                       disabled={selected.length >= 4 || isSelected}
-                      className={`group flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors ${
+                      className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        !isLast ? "border-b border-border" : ""
+                      } ${
                         isSelected
                           ? "bg-accent-dim"
                           : "hover:bg-surface-2"
@@ -478,7 +362,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          {isLive && (
+                          {(shock.is_recent || shock.is_live_alert) && (
                             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-no-text" />
                           )}
                           <span className="truncate text-sm font-medium text-text-primary">
@@ -491,6 +375,9 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                               {shock.category}
                             </span>
                           )}
+                          <span className="font-mono text-[10px] text-text-muted">
+                            {Math.round(shock.p_before * 100)}% &rarr; {prob}%
+                          </span>
                           <span className="text-[10px] text-text-muted">
                             {formatTimeAgo(shock.t2)}
                           </span>
@@ -498,11 +385,8 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                       </div>
 
                       <div className="w-14 shrink-0 text-right">
-                        <div className="text-sm font-semibold text-text-primary">
-                          {prob}%
-                        </div>
                         <div
-                          className={`text-xs font-medium ${
+                          className={`font-mono text-sm font-bold ${
                             shock.delta > 0
                               ? "text-yes-text"
                               : "text-no-text"
@@ -510,21 +394,6 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                         >
                           {shock.delta > 0 ? "+" : ""}
                           {(shock.delta * 100).toFixed(0)}pp
-                        </div>
-                      </div>
-
-                      <div className="hidden w-12 shrink-0 sm:block">
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${prob}%`,
-                              backgroundColor:
-                                shock.delta > 0
-                                  ? "var(--st-yes)"
-                                  : "var(--st-no)",
-                            }}
-                          />
                         </div>
                       </div>
                     </button>

@@ -238,61 +238,90 @@ function ShockCard({
   );
 }
 
-/** Circular progress ring that fills over `durationMs` then resets */
+/** Circular progress ring that matches LoadingSpinner style — fills over `durationMs` then resets.
+ *  Shows a brief spinning animation when the timer completes before restarting. */
 function CountdownRing({ durationMs }: { durationMs: number }) {
   const [progress, setProgress] = useState(0);
+  const [spinning, setSpinning] = useState(false);
   const startRef = useRef(0);
 
   useEffect(() => {
     startRef.current = Date.now();
     let raf: number;
+    let spinTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isSpin = false;
     const tick = () => {
+      if (isSpin) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       const elapsed = Date.now() - startRef.current;
       const pct = Math.min(elapsed / durationMs, 1);
       setProgress(pct);
       if (pct >= 1) {
-        // Reset after full cycle
-        startRef.current = Date.now();
+        isSpin = true;
+        setSpinning(true);
+        spinTimeout = setTimeout(() => {
+          isSpin = false;
+          setSpinning(false);
+          setProgress(0);
+          startRef.current = Date.now();
+        }, 2000);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (spinTimeout) clearTimeout(spinTimeout);
+    };
   }, [durationMs]);
 
-  const r = 22;
+  const size = 32;
+  const strokeW = 4;
+  const r = (size - strokeW) / 2;
   const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - progress);
+  const offset = spinning ? 0 : circumference * (1 - progress);
   const secs = Math.max(0, Math.ceil((durationMs - progress * durationMs) / 1000));
 
   return (
-    <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center">
-      <svg width={52} height={52} className="-rotate-90">
-        {/* Track */}
-        <circle
-          cx={26}
-          cy={26}
-          r={r}
-          fill="none"
-          stroke="var(--st-s3)"
-          strokeWidth={3}
+    <div className="mx-auto mb-6 flex flex-col items-center gap-2">
+      {spinning ? (
+        /* Spinning loader — same as LoadingSpinner */
+        <div
+          className="h-8 w-8 animate-spin rounded-full"
+          style={{
+            border: "4px solid var(--st-border)",
+            borderTopColor: "var(--st-accent)",
+          }}
         />
-        {/* Progress */}
-        <circle
-          cx={26}
-          cy={26}
-          r={r}
-          fill="none"
-          stroke="var(--st-accent)"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.3s linear" }}
-        />
-      </svg>
-      <span className="absolute font-mono text-[11px] text-text-muted">
-        {secs}s
+      ) : (
+        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="-rotate-90">
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="var(--st-border)"
+              strokeWidth={strokeW}
+            />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="var(--st-accent)"
+              strokeWidth={strokeW}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+            />
+          </svg>
+        </div>
+      )}
+      <span className="text-[11px] text-text-muted">
+        {spinning ? "scanning..." : `${secs}s`}
       </span>
     </div>
   );
@@ -312,7 +341,6 @@ export default function Home() {
   >({});
   const [imageMap, setImageMap] = useState<Record<string, string | null>>({});
   const [now] = useState(() => Date.now());
-  const [lastScanText, setLastScanText] = useState("");
 
   /* Sparkline lazy-loading */
   const fetchedIdsRef = useRef<Set<string>>(new Set());
@@ -380,7 +408,6 @@ export default function Home() {
     ]).then(([shocksOk, statsOk]) => {
       setUsingDummy(!shocksOk && !statsOk);
       setLoading(false);
-      setLastScanText("just now");
     });
   }, []);
 
@@ -492,15 +519,6 @@ export default function Home() {
     setGridVisibleCount(GRID_PAGE_SIZE);
   }, []);
 
-  /* All known categories (from stats, which has the full dataset) */
-  const allCategories = useMemo(() => {
-    const fromStats = stats.by_category ? Object.keys(stats.by_category) : [];
-    const fromShocks = allShocks
-      .map((s) => s.category)
-      .filter((c): c is string => !!c);
-    return Array.from(new Set([...fromStats, ...fromShocks])).sort();
-  }, [stats, allShocks]);
-
   /* Category counts from the current (last-hour) shocks only */
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -510,6 +528,11 @@ export default function Home() {
     }
     return counts;
   }, [liveShocks]);
+
+  /* Only categories that have live shocks */
+  const allCategories = useMemo(() => {
+    return Object.keys(categoryCounts).sort();
+  }, [categoryCounts]);
 
   const totalShockCount = Object.values(categoryCounts).reduce(
     (a, b) => a + b,
@@ -578,11 +601,10 @@ export default function Home() {
                 No shocks detected in the last hour.
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                Markets are quiet — check back soon.
+                Markets are quiet, check back soon.
               </p>
               <p className="mt-4 text-[11px] text-text-muted">
                 Monitoring {marketCount > 0 ? marketCount.toLocaleString() : "..."} markets
-                {lastScanText && <> &middot; Last scan: {lastScanText}</>}
               </p>
             </div>
           </section>
@@ -592,11 +614,11 @@ export default function Home() {
             {featuredShocks.length > 0 && (
               <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
                 <div
-                  className={`grid gap-5 ${
+                  className={`mx-auto grid gap-5 ${
                     featuredShocks.length >= 3
                       ? "grid-cols-1 md:grid-cols-3"
                       : featuredShocks.length === 2
-                        ? "grid-cols-1 md:grid-cols-2"
+                        ? "grid-cols-1 md:max-w-3xl md:grid-cols-2"
                         : "grid-cols-1 md:max-w-md"
                   }`}
                 >
@@ -657,7 +679,6 @@ export default function Home() {
                       </li>
                       {allCategories.map((cat) => {
                         const count = categoryCounts[cat] ?? 0;
-                        const hasShocks = count > 0;
                         return (
                           <li key={cat}>
                             <button
@@ -665,17 +686,13 @@ export default function Home() {
                               className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
                                 gridCategory === cat
                                   ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
-                                  : hasShocks
-                                    ? "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
-                                    : "text-text-muted opacity-50"
+                                  : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                               }`}
                             >
                               <span className="flex items-center gap-1.5">
                                 <span
                                   style={{
-                                    color: hasShocks
-                                      ? getCategoryColor(cat).text
-                                      : undefined,
+                                    color: getCategoryColor(cat).text,
                                   }}
                                 >
                                   <CategoryIcon
