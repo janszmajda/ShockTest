@@ -8,6 +8,7 @@ import ShocksTable from "@/components/ShocksTable";
 import Histogram from "@/components/Histogram";
 import CategoryBreakdown from "@/components/CategoryBreakdown";
 import { DashboardFilters } from "@/components/DashboardControls";
+import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
@@ -20,6 +21,7 @@ export default function Home() {
   const [usingDummy, setUsingDummy] = useState(true);
   const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
   const [closeTimeMap, setCloseTimeMap] = useState<Record<string, number | null>>({});
+  const [imageMap, setImageMap] = useState<Record<string, string | null>>({});
   const [filters, setFilters] = useState<DashboardFilters>({
     theta: 0.08,
     horizon: "6h",
@@ -52,15 +54,18 @@ export default function Home() {
             ).then((results) => {
               const mergedSeries: Record<string, PricePoint[]> = {};
               const mergedClose: Record<string, number | null> = {};
+              const mergedImages: Record<string, string | null> = {};
               for (const r of results) {
                 for (const [k, v] of Object.entries(r)) {
-                  const entry = v as { series: PricePoint[]; close_time: number | null };
+                  const entry = v as { series: PricePoint[]; close_time: number | null; image_url: string | null };
                   mergedSeries[k] = entry.series;
                   mergedClose[k] = entry.close_time;
+                  mergedImages[k] = entry.image_url;
                 }
               }
               setSeriesMap(mergedSeries);
               setCloseTimeMap(mergedClose);
+              setImageMap(mergedImages);
             });
             return true;
           }
@@ -211,7 +216,12 @@ export default function Home() {
                               : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                           }`}
                         >
-                          <span>{cat}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span style={{ color: getCategoryColor(cat).text }}>
+                              <CategoryIcon category={cat} className="h-3.5 w-3.5" />
+                            </span>
+                            {cat}
+                          </span>
                           <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
                             {categoryCounts[cat] ?? 0}
                           </span>
@@ -228,6 +238,7 @@ export default function Home() {
                   shocks={filteredShocks}
                   seriesMap={seriesMap}
                   closeTimeMap={closeTimeMap}
+                  imageMap={imageMap}
                   theta={filters.theta}
                   horizon={filters.horizon}
                   onFilterChange={handleFilterChange}

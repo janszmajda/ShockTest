@@ -100,6 +100,7 @@ def store_market(market: dict, series: list[dict]) -> int:
         "series": sorted(series, key=lambda x: x["t"]),
         "category": None,
         "close_time": close_time,
+        "image_url": market.get("icon") or market.get("image") or None,
     }
 
     db["market_series"].update_one(
