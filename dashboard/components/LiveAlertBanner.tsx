@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Shock } from "@/lib/types";
 
@@ -7,12 +8,19 @@ interface LiveAlertBannerProps {
   alerts: Shock[];
 }
 
+const PAGE_SIZE = 3;
+
 export default function LiveAlertBanner({ alerts }: LiveAlertBannerProps) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   if (alerts.length === 0) return null;
+
+  const visible = alerts.slice(0, visibleCount);
+  const hasMore = visibleCount < alerts.length;
 
   return (
     <div className="space-y-2">
-      {alerts.slice(0, 3).map((alert) => (
+      {visible.map((alert) => (
         <div
           key={alert._id}
           className="rounded-lg border border-border bg-no-dim px-4 py-3"
@@ -68,10 +76,13 @@ export default function LiveAlertBanner({ alerts }: LiveAlertBannerProps) {
           </div>
         </div>
       ))}
-      {alerts.length > 3 && (
-        <p className="text-center text-xs text-text-muted">
-          +{alerts.length - 3} more live signals
-        </p>
+      {hasMore && (
+        <button
+          onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+          className="w-full rounded-lg border border-border bg-surface-1 py-2 text-xs font-medium text-text-secondary transition-all hover:bg-surface-2 hover:text-text-primary"
+        >
+          Show {PAGE_SIZE} more &middot; {alerts.length - visibleCount} remaining
+        </button>
       )}
     </div>
   );
