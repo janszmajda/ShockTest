@@ -34,6 +34,10 @@ export default function PortfolioPage() {
     Record<string, SimilarStatsResponse>
   >({});
   const [loading, setLoading] = useState(true);
+  const [bankroll, setBankroll] = useState(500);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentReport, setAgentReport] = useState<string | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/shocks")
@@ -173,6 +177,54 @@ export default function PortfolioPage() {
     );
   };
 
+  const buildWithAgent = async () => {
+    setAgentLoading(true);
+    setAgentReport(null);
+    setAgentError(null);
+    try {
+      const res = await fetch("/api/portfolio-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankroll }),
+      });
+      const data = (await res.json()) as {
+        report?: string;
+        allocations?: Array<{
+          market_id: string;
+          question: string;
+          category: string | null;
+          delta: number;
+          p_after: number;
+          size: number;
+        }>;
+        error?: string;
+      };
+      if (data.error) throw new Error(data.error);
+      if (data.report) setAgentReport(data.report);
+      if (data.allocations && data.allocations.length > 0) {
+        const newSelected: SelectedShock[] = [];
+        for (const alloc of data.allocations.slice(0, 4)) {
+          const match = allShocks.find((s) => s.market_id === alloc.market_id);
+          if (match) {
+            newSelected.push({
+              market_id: match.market_id,
+              question: match.question,
+              category: match.category,
+              delta: match.delta,
+              p_after: match.p_after,
+              positionSize: alloc.size,
+            });
+          }
+        }
+        if (newSelected.length > 0) setSelected(newSelected);
+      }
+    } catch (e) {
+      setAgentError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
 
@@ -204,6 +256,54 @@ export default function PortfolioPage() {
             Select 2-4 shocks to fade simultaneously. See the combined payoff
             and diversification benefit.
           </p>
+        </div>
+
+        {/* AI Portfolio Builder */}
+        <div className="rounded-lg border border-border bg-surface-1 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">AI Portfolio Builder</h3>
+              <p className="mt-0.5 text-xs text-text-muted">
+                K2 scans shocks, sizes positions with half-Kelly, and writes a trade memo.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-text-muted">$</span>
+                <input
+                  type="number"
+                  value={bankroll}
+                  onChange={(e) => setBankroll(Math.max(50, Number(e.target.value)))}
+                  min={50}
+                  className="w-20 rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm"
+                />
+              </div>
+              <button
+                onClick={buildWithAgent}
+                disabled={agentLoading}
+                className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {agentLoading ? "Building..." : "Build with AI"}
+              </button>
+            </div>
+          </div>
+          {agentLoading && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-text-muted">
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Running 3-agent pipeline (Scanner → Risk Manager → Reporter)...
+            </div>
+          )}
+          {agentError && (
+            <p className="mt-3 text-sm text-no-text">{agentError}</p>
+          )}
+          {agentReport && (
+            <pre className="mt-4 whitespace-pre-wrap rounded-md border border-border bg-surface-2 p-4 text-xs leading-relaxed text-text-secondary">
+              {agentReport}
+            </pre>
+          )}
         </div>
 
         {loading ? (
