@@ -70,6 +70,9 @@ html, body {
 .border-border { border-color: var(--st-border) !important; }
 .border-border-hover { border-color: var(--st-border-h) !important; }
 .border-accent { border-color: var(--st-accent) !important; }
+.border-l-accent { border-left-color: var(--st-accent) !important; }
+.border-b-accent { border-bottom-color: var(--st-accent) !important; }
+.border-t-accent { border-top-color: var(--st-accent) !important; }
 .divide-border > * + * { border-color: var(--st-border) !important; }
 
 /* Hover states */
@@ -77,6 +80,8 @@ html, body {
 .hover\:bg-surface-3:hover { background-color: var(--st-s3) !important; }
 .hover\:bg-accent-dim:hover { background-color: var(--st-accent-dim) !important; }
 .hover\:border-border-hover:hover { border-color: var(--st-border-h) !important; }
+.hover\:border-l-accent:hover { border-left-color: var(--st-accent) !important; }
+
 .hover\:text-text-primary:hover { color: var(--st-txt) !important; }
 .hover\:text-text-secondary:hover { color: var(--st-txt2) !important; }
 
@@ -161,3 +166,4 @@ select, input[type="number"], input[type="text"] {
   border-color: var(--st-border);
   color: var(--st-txt2);
 }
+
