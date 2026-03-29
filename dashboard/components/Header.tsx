@@ -79,7 +79,7 @@ export function ExtensionButton() {
         className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all hover:opacity-80"
         style={{ background: "var(--st-accent)", color: "#fff" }}
       >
-        <Image src="/pngegg.png" alt="Chrome" width={16} height={16} />
+        <Image src="/chrome_icon.png" alt="Chrome" width={16} height={16} />
         Get Extension
       </button>
       {showExtension && <ExtensionPopup onClose={() => setShowExtension(false)} />}
