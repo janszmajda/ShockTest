@@ -14,13 +14,14 @@ import DashboardControls, {
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
-import { Shock, AggregateStats } from "@/lib/types";
+import { Shock, AggregateStats, PricePoint } from "@/lib/types";
 
 export default function Home() {
   const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
   const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
   const [usingDummy, setUsingDummy] = useState(true);
+  const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
   const [filters, setFilters] = useState<DashboardFilters>({
     theta: 0.08,
     horizon: "6h",
@@ -37,6 +38,24 @@ export default function Home() {
         .then((data: Shock[]) => {
           if (data.length > 0) {
             setAllShocks(data);
+            // Background fetch mini series for sparklines (batched)
+            const marketIds = Array.from(new Set(data.map((s) => s.market_id)));
+            const batchSize = 40;
+            const batches: string[][] = [];
+            for (let i = 0; i < marketIds.length; i += batchSize) {
+              batches.push(marketIds.slice(i, i + batchSize));
+            }
+            Promise.all(
+              batches.map((batch) =>
+                fetch(`/api/markets/mini-series?ids=${batch.join(",")}`)
+                  .then((r) => (r.ok ? r.json() : {}))
+                  .catch(() => ({})),
+              ),
+            ).then((results) => {
+              const merged: Record<string, PricePoint[]> = {};
+              for (const r of results) Object.assign(merged, r);
+              setSeriesMap(merged);
+            });
             return true;
           }
           return false;
@@ -135,8 +154,6 @@ export default function Home() {
   return (
     <>
       <Header />
-      {/* Stats bar — full width, sits right under nav like Polymarket */}
-      {!loading && <StatsCards stats={filteredStats} />}
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         {usingDummy && !loading && (
           <div className="mb-5 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
@@ -207,7 +224,7 @@ export default function Home() {
 
               {/* Main content */}
               <div className="min-w-0 flex-1 space-y-5">
-                <ShocksTable shocks={filteredShocks} />
+                <ShocksTable shocks={filteredShocks} seriesMap={seriesMap} />
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   <Histogram shocks={filteredShocks} />
                   <CategoryBreakdown stats={stats} />
