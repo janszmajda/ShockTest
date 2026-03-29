@@ -39,6 +39,108 @@ function AnimatedDots() {
   return <span>{".".repeat(count)}</span>;
 }
 
+/** Parse and render the AI portfolio report with proper formatting */
+function FormattedReport({ report }: { report: string }) {
+  const lines = report.split("\n");
+
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+
+    // Skip empty lines
+    if (!line) { i++; continue; }
+
+    // Title line: "FADE PORTFOLIO — ..." or all-caps header
+    if (/^(FADE PORTFOLIO|PORTFOLIO SUMMARY)/.test(line)) {
+      elements.push(
+        <h4 key={i} className="mt-4 first:mt-0 mb-2 text-sm font-bold tracking-wide text-text-primary">
+          {line}
+        </h4>
+      );
+      i++;
+      continue;
+    }
+
+    // Position line: starts with [N] or a number like "1." or "1)"
+    const posMatch = line.match(/^[\[(\s]*(\d+)[\])\.\s]+(.+)/);
+    if (posMatch) {
+      const num = posMatch[1];
+      const rest = posMatch[2];
+
+      // Collect indented lines below (Thesis:, Risk:, etc.)
+      const details: string[] = [];
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (next.match(/^\s{2,}/) || next.trim().startsWith("Thesis:") || next.trim().startsWith("Risk:")) {
+          details.push(next.trim());
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      elements.push(
+        <div key={i} className="mb-3 rounded-lg border border-border bg-surface-1 p-3">
+          <div className="flex items-start gap-2">
+            <span
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              style={{ background: "var(--st-accent)" }}
+            >
+              {num}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-text-primary">{rest}</p>
+              {details.map((d, j) => {
+                const thesisMatch = d.match(/^(Thesis|Risk|Direction|Entry|Size|Kelly):\s*(.+)/i);
+                if (thesisMatch) {
+                  return (
+                    <p key={j} className="mt-1 text-xs text-text-secondary">
+                      <span className="font-medium text-text-muted">{thesisMatch[1]}:</span> {thesisMatch[2]}
+                    </p>
+                  );
+                }
+                return <p key={j} className="mt-1 text-xs text-text-secondary">{d}</p>;
+              })}
+            </div>
+          </div>
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // Summary stat lines: "  Total deployed: $450" or "  Expected P&L: +$15"
+    const statMatch = line.match(/^(Total deployed|Expected P&L|Expected return|Diversification|Win rate|Note):\s*(.+)/i);
+    if (statMatch) {
+      const isPositive = statMatch[2].includes("+") || parseFloat(statMatch[2].replace(/[^0-9.-]/g, "")) > 0;
+      elements.push(
+        <div key={i} className="flex items-center justify-between border-b border-border py-1.5 last:border-0">
+          <span className="text-xs text-text-muted">{statMatch[1]}</span>
+          <span className={`text-xs font-semibold ${isPositive ? "text-yes-text" : "text-text-primary"}`}>
+            {statMatch[2]}
+          </span>
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // Any other line — render as plain text
+    elements.push(
+      <p key={i} className="text-xs leading-relaxed text-text-secondary">{line}</p>
+    );
+    i++;
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-surface-2 p-4">
+      {elements}
+    </div>
+  );
+}
+
 const POSITION_COLORS =["#F26522", "#2563eb", "#e11d9a", "#06b6d4"];
 const QUICK_SIZES = [50, 100, 250, 500];
 
@@ -320,11 +422,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
         {agentError && (
           <p className="mt-3 text-xs text-no-text">{agentError}</p>
         )}
-        {agentReport && (
-          <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border bg-surface-2 p-4 text-xs leading-relaxed text-text-secondary">
-            {agentReport}
-          </pre>
-        )}
+        {agentReport && <FormattedReport report={agentReport} />}
       </div>
 
       {/* Two-column builder */}
