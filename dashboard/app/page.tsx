@@ -349,7 +349,7 @@ export default function Home() {
     }, 300);
   }, []);
 
-  /* Data fetching — every 60 seconds */
+  /* Data fetching — every 120s (matches live_monitor poll cycle) */
   const fetchData = useCallback(() => {
     // Invalidate cache so we get fresh data each poll
     invalidate("/api/shocks");
@@ -378,7 +378,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000); // 60s refresh
+    const interval = setInterval(fetchData, 120000); // 120s refresh
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -555,7 +555,7 @@ export default function Home() {
         {noShocks ? (
           <section className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6 lg:px-8">
             <div className="mx-auto max-w-md">
-              <CountdownRing durationMs={60000} />
+              <CountdownRing durationMs={120000} />
               <p className="text-sm text-text-secondary">
                 No shocks detected in the last hour.
               </p>
