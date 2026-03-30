@@ -91,6 +91,10 @@ html, body {
   --font-mono: var(--font-mono);
 }
 
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
 .font-mono {
   font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
 }

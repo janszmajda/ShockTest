@@ -13,8 +13,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
+from pathlib import Path
+
 import requests
 from pymongo import MongoClient
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from analysis.categorize import categorize_market
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
@@ -185,8 +190,15 @@ def detect_live_shocks() -> list[dict]:
         if existing:
             continue
 
-        # New live shock — build alert with similar-shock edge context
-        category = market.get("category") or "other"
+        # New live shock — categorize via K2 if not already categorized
+        category = market.get("category")
+        if not category:
+            question = market.get("question", "")
+            category = categorize_market(question)
+            db["market_series"].update_one(
+                {"_id": market["_id"]},
+                {"$set": {"category": category}},
+            )
         direction = "up" if delta > 0 else "down"
         similar = query_similar_stats(category, abs(delta), direction)
 
