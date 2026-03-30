@@ -9,7 +9,9 @@
       "Bash(where python3:*)",
       "Bash(where py:*)",
       "Bash(python3 -m py_compile analysis/categorize.py)",
-      "Bash(python3 -m py_compile scripts/fetch_polymarket.py)"
+      "Bash(python3 -m py_compile scripts/fetch_polymarket.py)",
+      "Bash(launchctl load:*)",
+      "Bash(launchctl list:*)"
     ]
   }
 }
