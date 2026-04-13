@@ -36,7 +36,14 @@
       "Bash(venv/bin/grep -l \"shock_results\" /Users/janszmajda/Documents/ShockTest/analysis/*.py /Users/janszmajda/Documents/ShockTest/scripts/*.py)",
       "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/analysis/significance.py)",
       "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/scripts/compute_distribution.py)",
-      "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/analysis/correlation.py)"
+      "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/analysis/correlation.py)",
+      "Bash(venv/bin/python -c \"from analysis import aggregate, significance; print\\('imports OK'\\)\")",
+      "Bash(venv/bin/ruff check:*)",
+      "Bash(venv/bin/ruff format:*)",
+      "Bash(venv/bin/python -m ruff check analysis/aggregate.py analysis/significance.py --fix)",
+      "Bash(venv/bin/python -m ruff format analysis/aggregate.py analysis/significance.py)",
+      "Bash(command -v ruff)",
+      "Read(//opt/homebrew/bin/**)"
     ]
   }
 }

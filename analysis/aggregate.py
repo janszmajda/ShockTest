@@ -25,6 +25,11 @@ def compute_aggregate_stats() -> dict | None:
     Reads from shock_events, writes one document to shock_results
     with _id="aggregate_stats". Idempotent — safe to re-run.
 
+    In addition to total shock counts, records the distinct-market count
+    per horizon (clusters_Xh). Shocks on the same market are autocorrelated,
+    so cluster counts are the right denominator for honest claims —
+    sample_size_Xh is inflated by repeat shocks within a market.
+
     Returns:
         The stats dict written to MongoDB, or None if no shocks found.
     """
@@ -44,10 +49,30 @@ def compute_aggregate_stats() -> dict | None:
     def std_val(values: list[float]) -> float | None:
         return round(float(np.std(values)), 4) if values else None
 
-    # Collect reversion values per horizon
-    rev_1h = [s["reversion_1h"] for s in shocks if s.get("reversion_1h") is not None]
-    rev_6h = [s["reversion_6h"] for s in shocks if s.get("reversion_6h") is not None]
-    rev_24h = [s["reversion_24h"] for s in shocks if s.get("reversion_24h") is not None]
+    def horizon_rows(horizon: str, predicate=None) -> list[dict]:
+        rows = [s for s in shocks if s.get(f"reversion_{horizon}") is not None]
+        if predicate is not None:
+            rows = [s for s in rows if predicate(s)]
+        return rows
+
+    def summarize(rows: list[dict], horizon: str) -> dict:
+        vals = [s[f"reversion_{horizon}"] for s in rows]
+        clusters = {s["market_id"] for s in rows}
+        return {
+            "reversion_rate": reversion_rate(vals),
+            "mean_reversion": mean_val(vals),
+            "std_reversion": std_val(vals),
+            "sample_size": len(vals),
+            "n_clusters": len(clusters),
+        }
+
+    rev_1h_rows = horizon_rows("1h")
+    rev_6h_rows = horizon_rows("6h")
+    rev_24h_rows = horizon_rows("24h")
+
+    rev_1h = [s["reversion_1h"] for s in rev_1h_rows]
+    rev_6h = [s["reversion_6h"] for s in rev_6h_rows]
+    rev_24h = [s["reversion_24h"] for s in rev_24h_rows]
 
     stats: dict = {
         "_id": "aggregate_stats",
@@ -58,30 +83,48 @@ def compute_aggregate_stats() -> dict | None:
         "mean_reversion_1h": mean_val(rev_1h),
         "std_reversion_1h": std_val(rev_1h),
         "sample_size_1h": len(rev_1h),
+        "clusters_1h": len({s["market_id"] for s in rev_1h_rows}),
         # 6h horizon (headline metric)
         "reversion_rate_6h": reversion_rate(rev_6h),
         "mean_reversion_6h": mean_val(rev_6h),
         "std_reversion_6h": std_val(rev_6h),
         "sample_size_6h": len(rev_6h),
+        "clusters_6h": len({s["market_id"] for s in rev_6h_rows}),
         # 24h horizon
         "reversion_rate_24h": reversion_rate(rev_24h),
         "mean_reversion_24h": mean_val(rev_24h),
         "std_reversion_24h": std_val(rev_24h),
         "sample_size_24h": len(rev_24h),
-        # Category breakdown
+        "clusters_24h": len({s["market_id"] for s in rev_24h_rows}),
+        # Breakdowns
+        "by_source": {},
         "by_category": {},
     }
+
+    # Per-source breakdown (polymarket vs manifold) — critical since the
+    # public framing is Polymarket-specific.
+    sources = {s.get("source") for s in shocks if s.get("source")}
+    for src in sorted(sources):
+        src_total = [s for s in shocks if s.get("source") == src]
+        stats["by_source"][src] = {
+            "count": len(src_total),
+            "markets": len({s["market_id"] for s in src_total}),
+            "1h": summarize(horizon_rows("1h", lambda s, src=src: s.get("source") == src), "1h"),
+            "6h": summarize(horizon_rows("6h", lambda s, src=src: s.get("source") == src), "6h"),
+            "24h": summarize(horizon_rows("24h", lambda s, src=src: s.get("source") == src), "24h"),
+        }
 
     # Per-category breakdown
     categories = {s.get("category") for s in shocks if s.get("category")}
     for cat in sorted(categories):
+        cat_rows_6h = horizon_rows("6h", lambda s, cat=cat: s.get("category") == cat)
         cat_shocks = [s for s in shocks if s.get("category") == cat]
-        cat_rev_6h = [s["reversion_6h"] for s in cat_shocks if s.get("reversion_6h") is not None]
         stats["by_category"][cat] = {
             "count": len(cat_shocks),
-            "reversion_rate_6h": reversion_rate(cat_rev_6h),
-            "mean_reversion_6h": mean_val(cat_rev_6h),
-            "sample_size_6h": len(cat_rev_6h),
+            "reversion_rate_6h": reversion_rate([s["reversion_6h"] for s in cat_rows_6h]),
+            "mean_reversion_6h": mean_val([s["reversion_6h"] for s in cat_rows_6h]),
+            "sample_size_6h": len(cat_rows_6h),
+            "clusters_6h": len({s["market_id"] for s in cat_rows_6h}),
         }
 
     # Upsert into shock_results
@@ -102,18 +145,31 @@ def compute_aggregate_stats() -> dict | None:
         rate = stats[f"reversion_rate_{label}"]
         mean = stats[f"mean_reversion_{label}"]
         n = stats[f"sample_size_{label}"]
+        G = stats[f"clusters_{label}"]
         if rate is not None:
-            print(f"{label} reversion rate: {rate:.1%}  (mean={mean:+.4f}, n={n})")
+            print(f"{label} reversion rate: {rate:.1%}  (mean={mean:+.4f}, n={n} from G={G} markets)")
         else:
             print(f"{label} reversion rate: N/A (no data)")
 
     print()
-    print("By category:")
+    print("By source (6h):")
+    for src, data in stats["by_source"].items():
+        h6 = data["6h"]
+        rate = h6.get("reversion_rate")
+        rate_str = f"{rate:.1%}" if rate is not None else "N/A"
+        print(
+            f"  {src:12s}: {data['count']:4d} shocks total, "
+            f"6h_rate={rate_str}  (n={h6['sample_size']} from G={h6['n_clusters']} markets)"
+        )
+
+    print()
+    print("By category (6h):")
     for cat, data in stats["by_category"].items():
         rate = data.get("reversion_rate_6h")
         n = data.get("sample_size_6h", 0)
+        G = data.get("clusters_6h", 0)
         rate_str = f"{rate:.1%}" if rate is not None else "N/A"
-        print(f"  {cat:15s}: {data['count']:3d} shocks  6h_rate={rate_str}  (n={n})")
+        print(f"  {cat:15s}: {data['count']:4d} shocks  6h_rate={rate_str}  (n={n} from G={G} markets)")
 
     return stats
 
