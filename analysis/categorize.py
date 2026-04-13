@@ -698,8 +698,12 @@ def _categorize_k2_batch(questions: list[str]) -> list[str]:
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
 
-        # Extract JSON array from response (may have thinking tags or extra text)
-        # Find the first [ and last ]
+        # K2-Think-v2 emits reasoning wrapped in <think>...</think>; the JSON
+        # answer is whatever follows the closing tag. Strip the reasoning before
+        # extracting so bracket characters in the thinking trace don't confuse us.
+        if "</think>" in content:
+            content = content.rsplit("</think>", 1)[1]
+
         start = content.find("[")
         end = content.rfind("]")
         if start == -1 or end == -1:

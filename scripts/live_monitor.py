@@ -153,7 +153,29 @@ def fetch_latest_prices() -> int:
 def detect_live_shocks() -> list[dict]:
     """Run shock detection on recent data, write new alerts to MongoDB."""
     now = datetime.now(timezone.utc)
-    markets = list(db["market_series"].find({"source": "polymarket"}))
+    two_hr_ago = (now - timedelta(hours=2)).isoformat()
+
+    # One query instead of 4k: market_ids already alerted within the dedup window
+    recently_alerted = set(
+        db["shock_events"].distinct(
+            "market_id",
+            {"is_live_alert": True, "detected_at": {"$gte": two_hr_ago}},
+        )
+    )
+
+    # Slice to last LOOKBACK_POINTS so we don't ship full histories over the wire
+    markets = list(
+        db["market_series"].find(
+            {"source": "polymarket", "resolved": {"$ne": True}},
+            {
+                "market_id": 1,
+                "question": 1,
+                "category": 1,
+                "source": 1,
+                "series": {"$slice": -LOOKBACK_POINTS},
+            },
+        )
+    )
 
     new_shocks: list[dict] = []
 
@@ -179,15 +201,7 @@ def detect_live_shocks() -> list[dict]:
         if p_last <= 0.01 or p_last >= 0.99 or p_first <= 0.01 or p_first >= 0.99:
             continue
 
-        # Dedup: skip if we already logged this market's shock in the last 2 hours
-        existing = db["shock_events"].find_one(
-            {
-                "market_id": market["market_id"],
-                "is_live_alert": True,
-                "detected_at": {"$gte": (now - timedelta(hours=2)).isoformat()},
-            }
-        )
-        if existing:
+        if market["market_id"] in recently_alerted:
             continue
 
         # New live shock — categorize via K2 if not already categorized

@@ -1,0 +1,396 @@
+ShockTest Live Monitor
+Polling every 120s | Threshold: 0.08 | Workers: 10
+Market discovery every 10 cycles (~20 min)
+Ctrl+C to stop
+
+[21:08:42] Discovering new markets... +59 new, 91 resolved.
+[21:09:38] Fetching prices... 486 updated. Scanning... 
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Elon Musk post 200-219 tweets from March 24 to March 31, 2026?
+Move: 9% -> 17% (delta=+9%)
+Category: other
+Similar shocks (tight, n=19): 47% win rate, avg P&L $0.0060/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Bitcoin Up or Down - March 28, 12:00PM-4:00PM ET
+Move: 50% -> 26% (delta=-24%)
+Category: crypto
+Similar shocks (tight, n=37): 51% win rate, avg P&L $0.0225/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Bitcoin Up or Down - March 28, 11:00PM-11:15PM ET
+Move: 50% -> 40% (delta=-10%)
+Category: crypto
+Similar shocks (tight, n=106): 48% win rate, avg P&L $0.0045/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Knicks vs. Thunder
+Move: 18% -> 28% (delta=+10%)
+Category: sports
+Similar shocks (tight, n=17): 53% win rate, avg P&L $0.0272/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will the US announce new tariffs on EU goods by April 2026?
+Move: 32% -> 59% (delta=+27%)
+Category: politics
+Similar shocks (tight, n=20): 65% win rate, avg P&L $0.0435/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Bitcoin exceed $120k by end of Q2 2026?
+Move: 24% -> 40% (delta=+17%)
+Category: crypto
+Similar shocks (tight, n=69): 55% win rate, avg P&L $0.0167/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will there be a ceasefire in Ukraine by May 2026?
+Move: 45% -> 33% (delta=-12%)
+Category: geopolitics
+Similar shocks (tight, n=97): 65% win rate, avg P&L $0.0202/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will the Fed cut interest rates in April 2026?
+Move: 9% -> 38% (delta=+29%)
+Category: finance
+Similar shocks (tight, n=4): 75% win rate, avg P&L $0.1578/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Tesla stock close above $300 by end of April 2026?
+Move: 53% -> 35% (delta=-18%)
+Category: finance
+Similar shocks (tight, n=16): 75% win rate, avg P&L $0.0777/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Trump sign a new executive order on AI regulation by April 2026?
+Move: 36% -> 66% (delta=+30%)
+Category: politics
+Similar shocks (tight, n=14): 71% win rate, avg P&L $0.0561/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Ethereum flip Bitcoin in market cap by June 2026?
+Move: 8% -> 20% (delta=+12%)
+Category: crypto
+Similar shocks (tight, n=82): 59% win rate, avg P&L $0.0200/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will a Category 5 hurricane hit the US mainland before July 2026?
+Move: 12% -> 29% (delta=+17%)
+Category: science
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will China announce military exercises near Taiwan in April 2026?
+Move: 33% -> 55% (delta=+21%)
+Category: geopolitics
+Similar shocks (tight, n=65): 77% win rate, avg P&L $0.0700/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will the Lakers win the 2026 NBA Championship?
+Move: 19% -> 34% (delta=+15%)
+Category: sports
+Similar shocks (tight, n=17): 41% win rate, avg P&L $0.0279/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 1 column 11 (char 10) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Stars vs. Flyers
+Move: 34% -> 58% (delta=+24%)
+Category: sports
+Similar shocks (tight, n=19): 58% win rate, avg P&L $0.0289/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Blackhawks vs. Devils: O/U 6.5
+Move: 56% -> 31% (delta=-24%)
+Category: sports
+Similar shocks (tight, n=20): 80% win rate, avg P&L $0.1314/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Rockets (-6.5)
+Move: 78% -> 98% (delta=+20%)
+Category: sports
+Similar shocks (tight, n=23): 61% win rate, avg P&L $0.0386/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Cleveland Guardians vs. Seattle Mariners: O/U 7.5
+Move: 46% -> 62% (delta=+16%)
+Category: sports
+Similar shocks (tight, n=20): 65% win rate, avg P&L $0.0416/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Thunder (-8.5)
+Move: 44% -> 30% (delta=-14%)
+Category: sports
+Similar shocks (tight, n=14): 36% win rate, avg P&L $0.0409/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: LoL: Weibo Gaming vs Invictus Gaming (BO3) - Esports World Cup China Qualifier Phase 2
+Move: 66% -> 90% (delta=+23%)
+Category: esports
+Similar shocks (tight, n=2): 50% win rate, avg P&L $-0.0026/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Counter-Strike: OG vs BESTIA (BO3) - Roman Imperium Cup Playoffs
+Move: 64% -> 21% (delta=-42%)
+Category: esports
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Bucharest Open, Qualification: Billy Harris vs Alex Molcan
+Move: 24% -> 16% (delta=-8%)
+Category: sports
+Similar shocks (tight, n=15): 33% win rate, avg P&L $0.0046/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Counter-Strike: Sinners vs BetBoom Team (BO3) - Roman Imperium Cup Playoffs
+Move: 57% -> 72% (delta=+14%)
+Category: esports
+Similar shocks (tight, n=6): 17% win rate, avg P&L $-0.0058/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Mobis Phoebus vs. Wonju DB Promy
+Move: 44% -> 19% (delta=-26%)
+Category: sports
+Similar shocks (tight, n=19): 84% win rate, avg P&L $0.1383/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Bucharest Open, Qualification: Gabriel Ghetu vs Jay Clarke
+Move: 18% -> 8% (delta=-10%)
+Category: sports
+Similar shocks (tight, n=18): 33% win rate, avg P&L $0.0040/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will the price of Bitcoin be above $68,000 on March 31?
+Move: 54% -> 40% (delta=-14%)
+Category: crypto
+Similar shocks (tight, n=89): 57% win rate, avg P&L $0.0123/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Israel take military action in Gaza on March 30, 2026?
+Move: 76% -> 56% (delta=-19%)
+Category: geopolitics
+Similar shocks (tight, n=55): 69% win rate, avg P&L $0.0397/$1
+Signal: FADE UP
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Donald Trump post 80-99 Truth Social posts from March 24 to March 31, 2026?
+Move: 13% -> 37% (delta=+24%)
+Category: politics
+Similar shocks (tight, n=29): 66% win rate, avg P&L $0.0463/$1
+Signal: FADE DOWN
+============================================================
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Nuggets vs. Spurs
+Move: 22% -> 40% (delta=+17%)
+Category: sports
+Similar shocks (tight, n=23): 57% win rate, avg P&L $0.0333/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Suns vs. Thunder
+Move: 28% -> 72% (delta=+44%)
+Category: sports
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Canucks vs. Ducks
+Move: 32% -> 48% (delta=+15%)
+Category: sports
+Similar shocks (tight, n=17): 41% win rate, avg P&L $0.0279/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Senators vs. Devils
+Move: 72% -> 56% (delta=-16%)
+Category: sports
+Similar shocks (tight, n=25): 72% win rate, avg P&L $0.1026/$1
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 1 column 33 (char 32) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Jazz vs. Lakers: O/U 236.5
+Move: 58% -> 42% (delta=-16%)
+Category: sports
+Similar shocks (tight, n=25): 72% win rate, avg P&L $0.1026/$1
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Pelicans vs. Timberwolves
+Move: 40% -> 28% (delta=-12%)
+Category: sports
+Similar shocks (tight, n=18): 39% win rate, avg P&L $0.0192/$1
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 1 column 34 (char 33) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Bulls vs. Mavericks
+Move: 36% -> 20% (delta=-16%)
+Category: sports
+Similar shocks (tight, n=25): 76% win rate, avg P&L $0.1190/$1
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 1 column 34 (char 33) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Mavericks (-6.5)
+Move: 46% -> 58% (delta=+13%)
+Category: sports
+Similar shocks (tight, n=12): 42% win rate, avg P&L $0.0264/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Kings vs. Trail Blazers: O/U 225.5
+Move: 56% -> 76% (delta=+21%)
+Category: sports
+Similar shocks (tight, n=23): 61% win rate, avg P&L $0.0386/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 3 column 1 (char 34) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Thunder (-7.5)
+Move: 48% -> 10% (delta=-39%)
+Category: sports
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 1 column 33 (char 32) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Lakers (-14.5)
+Move: 55% -> 66% (delta=+12%)
+Category: sports
+Similar shocks (tight, n=19): 53% win rate, avg P&L $0.0288/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 1 column 11 (char 10) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Spurs (-9.5)
+Move: 52% -> 34% (delta=-17%)
+Category: sports
+Similar shocks (tight, n=24): 79% win rate, avg P&L $0.1247/$1
+Signal: FADE UP
+============================================================
+  K2 API error: Extra data: line 2 column 1 (char 11) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Spread: Timberwolves (-5.5)
+Move: 42% -> 55% (delta=+12%)
+Category: sports
+Similar shocks (tight, n=19): 53% win rate, avg P&L $0.0288/$1
+Signal: FADE DOWN
+============================================================
+  K2 API error: Extra data: line 2 column 1 (char 14) — falling back to keyword matching for batch
+
+============================================================
+LIVE SHOCK DETECTED
+Market: Will Tisza win the national list vote in the 2026 Hungarian Parliamentary election by 12-15%?
+Move: 27% -> 86% (delta=+58%)
+Category: elections
+Similar shocks (category, n=173): 61% win rate, avg P&L $0.0299/$1
+Signal: FADE DOWN
+============================================================
+NEW SHOCKS: 42! [209.5s]
+[21:12:12] Fetching prices... 469 updated. Scanning... no new shocks. 

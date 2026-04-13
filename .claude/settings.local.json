@@ -13,7 +13,22 @@
       "Bash(launchctl load:*)",
       "Bash(launchctl list:*)",
       "Bash(find /Users/janszmajda/Documents/ShockTest/dashboard/node_modules/next/dist/docs -type f -name *metadata*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ls -la .env*)",
+      "Bash(ls scripts/.env*)",
+      "Bash(ls dashboard/.env*)",
+      "Bash(ps -o pid,etime,stat,time,command -p 35898)",
+      "Bash(ps eww:*)",
+      "Bash(ps -o pid,stat,wchan,time -p 35898)",
+      "Bash(ps -o pid,lstart -p 35898)",
+      "Bash(kill 35898)",
+      "Bash(nohup venv/bin/python -c \"from dotenv import load_dotenv; load_dotenv\\(\\); exec\\(open\\('scripts/live_monitor.py'\\).read\\(\\)\\)\")",
+      "Bash(echo \"started PID $!\")",
+      "Bash(cat)",
+      "Bash(nohup venv/bin/python /tmp/run_monitor.py)",
+      "Bash(ps -p 64465 -o pid,etime,stat,time)",
+      "Bash(grep -E \"Fetching prices|NEW SHOCKS|no new|updated\\\\.|\\\\[.*s\\\\]$\" logs/live_monitor.log)",
+      "Bash(kill 64465)"
     ]
   }
 }
