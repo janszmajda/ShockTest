@@ -414,10 +414,70 @@ def discover_new_markets() -> int:
     return added
 
 
+SHOCK_WINDOW_PRE = 3600        # 1h before each shock
+SHOCK_WINDOW_POST = 24 * 3600  # 24h after each shock
+LIVE_SERIES_MAX_AGE_DAYS = 7   # rolling cap for unresolved markets
+
+
+def _iso_to_ts(s: str | None) -> float | None:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except (ValueError, AttributeError):
+        return None
+
+
+def prune_series_to_shock_windows(market_id: str, obj_id) -> None:
+    """Trim a resolved market's series to windows around each of its shocks.
+
+    Keeps points within [t_shock - 1h, t_shock + 24h] for each shock in
+    shock_events. If the market has no shocks, empties the series entirely.
+    All work happens server-side via a pipeline update.
+    """
+    windows: list[tuple[float, float]] = []
+    for se in db["shock_events"].find(
+        {"market_id": market_id}, {"t2": 1, "detected_at": 1}
+    ):
+        center = _iso_to_ts(se.get("t2")) or _iso_to_ts(se.get("detected_at"))
+        if center is not None:
+            windows.append((center - SHOCK_WINDOW_PRE, center + SHOCK_WINDOW_POST))
+
+    if not windows:
+        db["market_series"].update_one({"_id": obj_id}, {"$set": {"series": []}})
+        return
+
+    cond = {
+        "$or": [
+            {"$and": [{"$gte": ["$$p.t", a]}, {"$lte": ["$$p.t", b]}]}
+            for a, b in windows
+        ]
+    }
+    db["market_series"].update_one(
+        {"_id": obj_id},
+        [{"$set": {"series": {"$filter": {"input": "$series", "as": "p", "cond": cond}}}}],
+    )
+
+
+def cap_live_series(days: int = LIVE_SERIES_MAX_AGE_DAYS) -> int:
+    """Drop price points older than `days` from all unresolved polymarket markets.
+
+    One server-side $pull — bounds the size of live market series so the
+    database can't silently bloat again.
+    """
+    cutoff_ts = datetime.now(timezone.utc).timestamp() - days * 86400
+    result = db["market_series"].update_many(
+        {"source": "polymarket", "resolved": {"$ne": True}},
+        {"$pull": {"series": {"t": {"$lt": cutoff_ts}}}},
+    )
+    return result.modified_count
+
+
 def mark_resolved_markets() -> int:
     """Mark markets as resolved if their last price is at 0% or 100%.
 
-    Sets a 'resolved' flag so we stop polling them.
+    Sets a 'resolved' flag so we stop polling them, then trims the series
+    down to shock windows so the doc doesn't keep taking up space.
     Returns count of newly resolved markets.
     """
     resolved = 0
@@ -434,6 +494,7 @@ def mark_resolved_markets() -> int:
             db["market_series"].update_one(
                 {"_id": m["_id"]}, {"$set": {"resolved": True}}
             )
+            prune_series_to_shock_windows(m["market_id"], m["_id"])
             resolved += 1
     return resolved
 
@@ -453,12 +514,17 @@ def main() -> None:
             cycle_start = time.time()
             ts = datetime.now().strftime("%H:%M:%S")
 
-            # Every N cycles: discover new markets + mark resolved ones
+            # Every N cycles: discover new markets + mark resolved ones + cap live
             if cycle_count % DISCOVERY_INTERVAL == 1:
                 print(f"[{ts}] Discovering new markets...", end=" ", flush=True)
                 new_markets = discover_new_markets()
                 resolved = mark_resolved_markets()
-                print(f"+{new_markets} new, {resolved} resolved.", flush=True)
+                capped = cap_live_series()
+                print(
+                    f"+{new_markets} new, {resolved} resolved, "
+                    f"capped series on {capped} live markets.",
+                    flush=True,
+                )
                 ts = datetime.now().strftime("%H:%M:%S")
 
             print(f"[{ts}] Fetching prices...", end=" ", flush=True)

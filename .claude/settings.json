@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kill 65375)",
+      "Bash(kill 65378)",
+      "Bash(venv/bin/python scripts/prune_db.py)"
+    ]
+  }
+}
