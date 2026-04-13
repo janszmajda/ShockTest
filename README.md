@@ -14,8 +14,9 @@ ShockTest is a live trading signal system for Polymarket. It detects sudden prob
 
 | Metric | Value |
 |--------|-------|
-| Markets Analyzed | 1,300+ (Polymarket + Manifold) |
-| Total Shocks Detected | 1,500+ |
+| Markets Tracked | 4,250+ (Polymarket + Manifold) |
+| Total Shocks Detected | 4,922 |
+| Shocks with Complete 6h Outcomes | 1,299 |
 | 6h Reversion Rate | 59.9% |
 | Mean 6h Reversion | +3.45 pp |
 | Fade Strategy Win Rate (6h) | 59.9% |
@@ -25,13 +26,17 @@ ShockTest is a live trading signal system for Polymarket. It detects sudden prob
 
 | Category | Win Rate | Avg P&L | Sample Size |
 |----------|----------|---------|-------------|
-| Politics | 64.7% | +$0.040 | 662 |
-| Crypto | 53.5% | +$0.018 | 302 |
-| Sports | 56.1% | +$0.048 | 90 |
-| Science | 60.6% | +$0.030 | 33 |
-| Other | 53.9% | +$0.039 | 145 |
+| Geopolitics | 70.7% | +$0.058 | 351 |
+| Elections | 60.7% | +$0.030 | 173 |
+| Tech | 60.6% | +$0.030 | 33 |
+| Finance | 59.3% | +$0.038 | 81 |
+| Sports | 57.5% | +$0.053 | 87 |
+| Politics | 54.7% | +$0.012 | 150 |
+| Crypto | 53.5% | +$0.018 | 325 |
+| Other | 52.3% | +$0.034 | 88 |
+| Esports | 45.5% | +$0.004 | 11 |
 
-Political markets show the strongest edge at 64.7%, suggesting political shocks are most often overreactions to headlines. Crypto markets revert less reliably at 53.5%.
+Geopolitics markets show the strongest edge at 70.7% (z = +7.74), suggesting geopolitical shocks are most often overreactions to headlines. Crypto and Politics revert less reliably (around 53-55%), and Esports — though on a small sample — shows no meaningful fade edge.
 
 ---
 

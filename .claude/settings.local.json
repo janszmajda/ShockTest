@@ -28,7 +28,15 @@
       "Bash(nohup venv/bin/python /tmp/run_monitor.py)",
       "Bash(ps -p 64465 -o pid,etime,stat,time)",
       "Bash(grep -E \"Fetching prices|NEW SHOCKS|no new|updated\\\\.|\\\\[.*s\\\\]$\" logs/live_monitor.log)",
-      "Bash(kill 64465)"
+      "Bash(kill 64465)",
+      "Bash(ls /Users/janszmajda/Documents/ShockTest/dashboard/.env*)",
+      "Bash(ls /Users/janszmajda/Documents/ShockTest/venv/bin/python*)",
+      "Bash(/Users/janszmajda/Documents/ShockTest/venv/bin/python -c \"import pymongo; print\\(pymongo.__version__\\)\")",
+      "Bash(venv/bin/python -c ':*)",
+      "Bash(venv/bin/grep -l \"shock_results\" /Users/janszmajda/Documents/ShockTest/analysis/*.py /Users/janszmajda/Documents/ShockTest/scripts/*.py)",
+      "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/analysis/significance.py)",
+      "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/scripts/compute_distribution.py)",
+      "Bash(venv/bin/python /Users/janszmajda/Documents/ShockTest/analysis/correlation.py)"
     ]
   }
 }
